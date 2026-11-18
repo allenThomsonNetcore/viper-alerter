@@ -1,0 +1,52 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: catalog-indexing-alert
+  namespace: default
+spec:
+  schedule: "*/30 * * * *"
+  timezone: UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  workflowSpec:
+    serviceAccountName: indexing-alert
+    activeDeadlineSeconds: 300
+    entrypoint: checker
+    templates:
+      - name: checker
+        container:
+          image: your-registry/catalog-indexing-alert:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "checker.main"]
+          envFrom:
+            - configMapRef:
+                name: indexing-alert-config
+            - secretRef:
+                name: indexing-alert-secrets
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+        volumes:
+          - name: config
+            configMap:
+              name: indexing-alert-config
+              items:
+                - key: sites.csv
+                  path: sites.csv
+                - key: config.yaml
+                  path: config.yaml

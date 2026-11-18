@@ -1,0 +1,4 @@
+requests==2.32.3
+croniter==5.0.1
+PyYAML==6.0.2
+pytest==8.3.3

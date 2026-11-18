@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: indexing-alert-config
+  namespace: default
+data:
+  CSV_SOURCE: /config/sites.csv
+  CSV_SOURCE_TYPE: local
+  STATE_BACKEND: kubernetes
+  STATE_CONFIGMAP: indexing-alert-state
+  CONFIG_YAML: /config/config.yaml
+  BUFFER_MINUTES: "15"
+  MAX_WORKERS: "10"
+  REQUEST_TIMEOUT_SECONDS: "15"
+  TIMESTAMP_SEMANTICS: finish
+  # Host and webhook region overrides may be set in a mounted config.yaml.
+  config.yaml: |
+    region_hosts:
+      apac: feed-apac.unbxd.io
+    region_webhooks: {}
+  sites.csv: |
+    site_key,region,cron,max_duration_minutes
+    ss-unbxd-dev-supertails43231684494776,apac,0 */3 * * *,120
+    example-apac-store,apac,30 */2 * * *,90
+    example-apac-nightly,apac,0 1 * * *,120
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: indexing-alert-state
+  namespace: default
+data:
+  records.json: "{}"
