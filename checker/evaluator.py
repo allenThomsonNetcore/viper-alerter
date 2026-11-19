@@ -55,11 +55,13 @@ def evaluate(site: Site, history: list[dict[str, Any]], now: datetime, scheduled
         if status in IN_PROGRESS: return "in_progress"
         return "unknown"
     classes = [(classify(entry), entry) for _, entry in candidates]
-    priority = ("ok", "failed", "rejected", "unknown")
-    chosen = next(((state, e) for state in priority for c, e in classes if c == state), None)
-    if chosen:
-        state, latest = chosen
+    # History is sorted newest-first. The newest known entry is the current
+    # state for this scheduled run; an older success must not mask a later fail.
+    if classes and classes[0][0] != "in_progress":
+        state, latest = classes[0]
     elif classes and all(c == "in_progress" for c, _ in classes):
+        state, latest = ("stuck" if now >= deadline else "pending"), classes[0][1]
+    elif classes and classes[0][0] == "in_progress":
         state, latest = ("stuck" if now >= deadline else "pending"), classes[0][1]
     elif not classes:
         state, latest = ("missing" if now >= deadline else "pending"), None

@@ -47,7 +47,8 @@ def alert_text(site: Any, result: dict[str, Any], host: str) -> tuple[str, str]:
                    "stuck": "Check the indexing job and its worker logs.", "failed": "Inspect the failure message and indexing logs.",
                    "rejected": "Check feed validation and rejection details.", "unknown": "Review the raw status and code with the platform team."}
     subject = f"Indexing alert: {state} - {site.site_key} [{site.region}]"
-    body = (f"Region: {site.region}\nSite: {site.site_key}\nScheduled time (UTC): {scheduled}\nState: {state}\n"
+    body = (f"Region: {site.region}\nSite: {site.site_key}\nVersion: {site.version}\nApp: {site.app}\n"
+            f"Scheduled time (UTC): {scheduled}\nState: {state}\n"
             f"How long overdue: {result['overdue_minutes']} minutes\nLatest history entry: status={entry.get('status', 'none')}, "
             f"code={entry.get('code', 'none')}, date={entry.get('date', 'none')}, message={entry.get('message', 'none')}\n"
             f"Status URL: https://{host}/api/{site.site_key}/catalog/status\nSuggested next check: {suggestions.get(state, 'Review the run status.')}")

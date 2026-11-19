@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="60">
+  <title>Viper Indexing Status</title>
+  <style>
+    :root { color-scheme: light; font: 15px/1.5 system-ui, sans-serif; color: #182230; background: #f4f6f8; }
+    body { margin: 0; } header { background: #13243a; color: white; padding: 22px max(20px, calc((100vw - 1180px)/2)); }
+    h1 { margin: 0; font-size: 22px; } main { max-width: 1180px; margin: 26px auto; padding: 0 20px; }
+    .sub { color: #d4deea; margin-top: 4px; } .panel { background: white; border: 1px solid #e0e5eb; border-radius: 10px; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 920px; } th, td { padding: 13px 15px; border-bottom: 1px solid #edf0f3; text-align: left; vertical-align: top; }
+    th { background: #f8fafb; color: #566273; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+    tr:last-child td { border-bottom: 0; } a { color: #145bb8; } .badge { display: inline-block; border-radius: 20px; padding: 2px 9px; font-size: 12px; font-weight: 650; background: #e9eef5; }
+    .ok { background: #dcf5e7; color: #126533; } .pending { background: #fff2cb; color: #805700; } .failed,.missing,.stuck,.rejected,.unknown,.checker_error { background: #fde3e1; color: #a12620; }
+    .yes { color: #126533; font-weight: 600; } .no { color: #697586; } .empty { padding: 32px; color: #667085; text-align: center; }
+    .muted { color: #697586; font-size: 13px; } code { white-space: pre-wrap; word-break: break-word; }
+  </style>
+</head>
+<body>
+  <header><h1>Catalog indexing status</h1><div class="sub">Latest recorded run for each configured site · refreshes every minute</div></header>
+  <main>
+    <div class="panel">
+      {% if rows %}
+      <table>
+        <thead><tr><th>Site key</th><th>Region</th><th>Version</th><th>App</th><th>Latest state</th><th>Scheduled (UTC)</th><th>Checked (UTC)</th><th>API status</th><th>Alert sent</th><th>Status API</th></tr></thead>
+        <tbody>
+        {% for row in rows %}{% set entry = row.latest_entry or {} %}
+          <tr>
+            <td><a href="/site/{{ row.site_key|urlencode }}?region={{ row.region|urlencode }}">{{ row.site_key }}</a></td>
+            <td>{{ row.region }}</td><td>{{ row.version }}</td><td>{{ row.app }}</td><td><span class="badge {{ row.state }}">{{ row.state }}</span></td>
+            <td>{{ row.scheduled_time }}</td><td>{{ row.checked_at }}</td>
+            <td>{{ entry.status or "—" }}{% if entry.code is defined %} ({{ entry.code }}){% endif %}</td>
+            <td class="{{ 'yes' if row.alert_sent else 'no' }}">{{ "Yes" if row.alert_sent else "No" }}</td>
+            <td>{% if row.status_url %}<a href="{{ row.status_url }}" target="_blank" rel="noopener">Open API ↗</a>{% else %}—{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="empty">No checker results yet. Run the first check to populate this table.</div>{% endif %}
+    </div>
+    <p class="muted">Times are stored and displayed in UTC. A first visit after the service has been idle may take about a minute while it starts.</p>
+  </main>
+</body>
+</html>

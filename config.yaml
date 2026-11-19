@@ -1,0 +1,11 @@
+region_hosts:
+  us: feed.unbxd.io
+  us-gcp: feed-g-nam.unbxd.io
+  au: feed-anz.unbxd.io
+  uk: feed-uk.unbxd.io
+  sg: feed-apac.unbxd.io
+  anz-gcp: feed-g-anz.unbxd.io
+  au-gcp: feed-g-anz.unbxd.io
+  uk-gcp: feed-g-eu.unbxd.io
+  sg-gcp: feed-g-apac.unbxd.io
+region_webhooks: {}

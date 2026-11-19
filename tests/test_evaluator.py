@@ -56,6 +56,19 @@ def test_late_entry_excluded_at_next_boundary():
     assert ev(entry, datetime(2026, 10, 23, 10, 0, tzinfo=UTC))["state"] == "missing"
 
 
+def test_newest_failure_after_success_wins():
+    """A newer failure in the same scheduled window is not masked by success."""
+    success_at = datetime(2026, 10, 23, 6, 10, tzinfo=UTC)
+    failure_at = datetime(2026, 10, 23, 6, 20, tzinfo=UTC)
+    history = [
+        {"status": "FAILED", "code": 500, "timeStamp": int(failure_at.timestamp() * 1000)},
+        {"status": "INDEXED", "code": 200, "timeStamp": int(success_at.timestamp() * 1000)},
+    ]
+    result = evaluate(SITE, history, datetime(2026, 10, 23, 7, 0, tzinfo=UTC), T,
+                      datetime(2026, 10, 23, 9, 0, tzinfo=UTC))
+    assert result["state"] == "failed"
+
+
 def test_previous_run_and_utc():
     """UTC-aware scheduled timestamps remain stable."""
     old = datetime(2026, 10, 23, 3, 0, tzinfo=UTC)

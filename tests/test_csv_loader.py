@@ -4,7 +4,16 @@ from checker.csv_loader import parse_sites
 
 def test_csv_validation_and_default_duration():
     """Valid rows load and invalid, duplicate, and unknown-region rows are reported."""
-    data = "site_key,region,cron,max_duration_minutes\na,apac,0 */3 * * *,\na,apac,0 */3 * * *,120\nb,other,0 * * * *,120\nc,apac,nope,120\n"
+    data = "site_key,region,cron,max_duration_minutes,version,app\na,apac,0 */3 * * *,,v2,shopify\na,apac,0 */3 * * *,120,v1,bigcommerce\nb,other,0 * * * *,120,v1,shopify\nc,apac,nope,120,v1,shopify\n"
     sites, errors = parse_sites(data, {"apac": "host"})
     assert len(sites) == 1 and sites[0].max_duration_minutes == 120
     assert len(errors) == 3
+    assert sites[0].version == "v2" and sites[0].app == "shopify"
+
+
+def test_csv_rejects_unknown_app_or_version():
+    """Only supported app and version values are accepted."""
+    data = "site_key,region,cron,max_duration_minutes,version,app\na,apac,0 */3 * * *,120,v3,shopify\nb,apac,0 */3 * * *,120,v1,magento\n"
+    sites, errors = parse_sites(data, {"apac": "host"})
+    assert not sites
+    assert len(errors) == 2

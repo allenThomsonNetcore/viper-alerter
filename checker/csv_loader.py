@@ -57,26 +57,35 @@ class Site:
     region: str
     cron: str
     max_duration_minutes: int
+    version: str = "v1"
+    app: str = "shopify"
 
 
 def parse_sites(content: str, region_hosts: dict[str, str]) -> tuple[list[Site], list[str]]:
     """Validate CSV rows, returning usable sites and descriptive errors."""
     reader = csv.DictReader(io.StringIO(content))
-    required = {"site_key", "region", "cron", "max_duration_minutes"}
+    required = {"site_key", "region", "cron", "max_duration_minutes", "version", "app"}
     if not reader.fieldnames or not required.issubset(set(reader.fieldnames)):
-        return [], ["CSV header must include site_key,region,cron,max_duration_minutes"]
+        return [], ["CSV header must include site_key,region,cron,max_duration_minutes,version,app"]
     sites: list[Site] = []
     errors: list[str] = []
     seen: set[tuple[str, str]] = set()
     for line, raw in enumerate(reader, start=2):
         row = {k: (v or "").strip() for k, v in raw.items() if k is not None}
-        missing = [k for k in ("site_key", "region", "cron") if not row.get(k)]
+        missing = [k for k in ("site_key", "region", "cron", "version", "app") if not row.get(k)]
         if missing:
             errors.append(f"line {line}: missing fields {','.join(missing)}")
             continue
         region, site_key, expr = row["region"], row["site_key"], row["cron"]
         if region not in region_hosts:
             errors.append(f"line {line}: unknown region {region}")
+            continue
+        version, app = row["version"].lower(), row["app"].lower()
+        if version not in {"v1", "v2"}:
+            errors.append(f"line {line}: version must be v1 or v2")
+            continue
+        if app not in {"shopify", "bigcommerce"}:
+            errors.append(f"line {line}: app must be shopify or bigcommerce")
             continue
         if not croniter.is_valid(expr):
             errors.append(f"line {line}: invalid cron {expr}")
@@ -93,5 +102,5 @@ def parse_sites(content: str, region_hosts: dict[str, str]) -> tuple[list[Site],
             errors.append(f"line {line}: max_duration_minutes must be a positive integer")
             continue
         seen.add(key)
-        sites.append(Site(site_key, region, expr, duration))
+        sites.append(Site(site_key, region, expr, duration, version, app))
     return sites, errors
