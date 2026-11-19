@@ -80,6 +80,7 @@ tbody tr:hover { background: #fbfcfe; }
 .empty-state h3 { margin: 8px 0 4px; color: #35445a; font-size: 16px; }.empty-state p { margin: 0; font-size: 12px; }.empty-icon { color: #7995c4; font-size: 25px; }
 .breadcrumbs { display: flex; gap: 10px; margin-bottom: 22px; color: #8792a1; font-size: 12px; }.breadcrumbs a { font-weight: 600; }
 .detail-heading { align-items: center; }.break-word { overflow-wrap: anywhere; }.message-cell { max-width: 400px; overflow-wrap: anywhere; color: #637086; }
+.site-schedule { margin: 8px 0 0; color: #40516a; font-weight: 600; }.site-schedule .cell-sub { font-weight: 400; }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 38px; padding: 0 14px; border: 1px solid transparent; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 700; text-decoration: none; }
 .button:hover { text-decoration: none; }.button-primary { color: #fff; background: #2867d5; box-shadow: 0 3px 8px #2867d530; }.button-primary:hover { background: #1f58bd; }
 .button-quiet { min-height: 34px; color: #d0d9e6; background: transparent; border-color: #354158; }.button-quiet:hover { color: #fff; background: #ffffff10; }

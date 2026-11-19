@@ -4,10 +4,13 @@
 <main class="page-shell">
   <nav class="breadcrumbs"><a href="/">← All sites</a><span>/</span><span>{{ site_key }}</span></nav>
   <section class="page-heading detail-heading">
-    <div><p class="eyebrow">SITE RUN HISTORY</p><h1 class="break-word">{{ site_key }}</h1><p class="lede">{{ region }} <span class="tag">{{ rows[0].version }}</span> <span class="tag tag-soft">{{ rows[0].app }}</span></p></div>
+    <div><p class="eyebrow">SITE RUN HISTORY</p><h1 class="break-word">{{ site_key }}</h1><p class="lede">{{ region }} <span class="tag">{{ rows[0].version }}</span> <span class="tag tag-soft">{{ rows[0].app }}</span></p>{% if rows[0].cron_description %}<p class="lede site-schedule">Schedule: {{ rows[0].cron_description }} <span class="cell-sub">Cron: <code>{{ rows[0].cron }}</code></span></p>{% endif %}</div>
     {% if rows[0].status_url %}<a class="button button-primary" href="{{ rows[0].status_url }}" target="_blank" rel="noopener">Open live status API ↗</a>{% endif %}
   </section>
   <section class="content-card">
+    {% if rows|length == 1 and rows[0].state == 'no_data' %}
+    <div class="empty-state"><span class="state-pill state-no-data">Not checked yet</span><h3>No check has been recorded for this site</h3><p>The status history will appear here after the scheduled checker runs. You can open the feed status API above to inspect it now.</p></div>
+    {% else %}
     <div class="card-heading"><div><h2>Recent scheduled runs</h2><p>Latest status observations for this site.</p></div></div>
     <div class="table-wrap">
       <table><thead><tr><th>State</th><th>Scheduled (IST)</th><th>Checked (IST)</th><th>API entry</th><th>Alert sent</th><th>Message</th></tr></thead>
@@ -21,6 +24,7 @@
         </tr>
       {% endfor %}</tbody></table>
     </div>
+    {% endif %}
   </section>
   <p class="page-footnote">Scheduled is the planned run time from the CSV cron; Checked is when Viper queried the status API. Both are displayed in IST.</p>
 </main>

@@ -85,6 +85,29 @@ def test_live_status_page_shows_localized_feed_timestamp_and_filter(monkeypatch)
     assert b"https://feed.unbxd.io/api/test-site/catalog/status" in response.data
 
 
+def test_site_history_page_handles_site_before_first_check(monkeypatch):
+    """A configured site with no stored runs gets an informative page, not 404."""
+    from checker import web
+
+    class Store:
+        def site_history(self, site_key, region=""):
+            return []
+
+    monkeypatch.setattr(web, "load_config", lambda: Config(dashboard_user="operator", dashboard_password="secret", flask_secret_key="test-key"))
+    monkeypatch.setattr(web, "_store", Store)
+    monkeypatch.setattr(web, "_configured_sites", lambda cfg: [Site("test-site", "us", "0 */3 * * *", 120, "v2", "shopify")])
+    web.app.secret_key = "test-key"
+    client = web.app.test_client()
+    with client.session_transaction() as state:
+        state["viper_authenticated"] = True
+        state["csrf_token"] = "csrf"
+    response = client.get("/site/test-site?region=us")
+    assert response.status_code == 200
+    assert b"Not checked yet" in response.data
+    assert b"Every 3 hours at minute 00 UTC" in response.data
+    assert b"https://feed.unbxd.io/api/test-site/catalog/status" in response.data
+
+
 def test_run_endpoint_rejects_bad_token(monkeypatch):
     """The external scheduler endpoint rejects an invalid bearer token."""
     from checker import web

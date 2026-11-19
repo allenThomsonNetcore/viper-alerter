@@ -291,11 +291,25 @@ def live_status():
 
 @app.get("/site/<site_key>")
 def site_detail(site_key: str):
-    """Render recent scheduled runs for a selected site."""
+    """Render recent runs, including a helpful page before the first check."""
     region = request.args.get("region", "")
+    cfg = load_config()
     history = _store().site_history(site_key, region)
+    configured_site = next((site for site in _configured_sites(cfg)
+                            if site.site_key == site_key and (not region or site.region == region)), None)
     if not history:
-        abort(404)
+        if not configured_site:
+            abort(404)
+        status_url = f"https://{cfg.region_hosts[configured_site.region]}/api/{site_key}/catalog/status"
+        history = [{"site_key": site_key, "region": configured_site.region,
+                    "version": configured_site.version, "app": configured_site.app,
+                    "cron": configured_site.cron, "cron_description": describe_cron(configured_site.cron),
+                    "state": "no_data", "scheduled_time": "", "checked_at": "",
+                    "latest_entry": None, "alert_sent": False, "status_url": status_url}]
+    elif configured_site:
+        for row in history:
+            row["cron"] = configured_site.cron
+            row["cron_description"] = describe_cron(configured_site.cron)
     return render_template("site.html", site_key=site_key, region=region or history[0].get("region"),
                            rows=history, csrf_token=_csrf_token())
 
