@@ -22,7 +22,7 @@ Supabase Free is useful for a prototype, but projects can be paused after a week
 
 ## EmailJS setup
 
-Create an EmailJS service and email template. Configure the template to use these variables:
+Create an EmailJS service and email template. Paste [`emailjs/template.html`](emailjs/template.html) into the template's **Code** editor. Set **To email** to `{{to_email}}`, **Subject** to `{{subject}}`, **CC** to `{{cc_emails}}`, and **BCC** to `{{bcc_emails}}` (leave CC or BCC blank if unused). The HTML uses these template variables:
 
 | Template variable | Value |
 |---|---|
@@ -36,8 +36,12 @@ Create an EmailJS service and email template. Configure the template to use thes
 | `version` | Integration version (`v1` or `v2`) |
 | `app` | Commerce app (`shopify` or `bigcommerce`) |
 | `state` | Alert state, when present |
-| `scheduled_time` | Scheduled UTC time, when present |
+| `scheduled_time` | Scheduled time in IST, when present |
+| `checked_at` | Time Viper checked the API, in IST |
+| `api_timestamp` | Latest API entry timestamp converted from its epoch value to IST, when present |
 | `status_url` | Platform status API URL, when present |
+
+Alert email timestamps use IST. The API's raw `date` text is omitted because its timezone is not specified by the endpoint; use `api_timestamp` for an unambiguous timestamp.
 
 Set `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`, `EMAILJS_PUBLIC_KEY`, `EMAILJS_TO_EMAIL`, and (if enabled for the account) `EMAILJS_PRIVATE_KEY` in Render. Add optional comma-separated `EMAILJS_CC_EMAILS` and `EMAILJS_BCC_EMAILS` lists for additional recipients. In the EmailJS template settings, set **CC** to `{{cc_emails}}` and **BCC** to `{{bcc_emails}}` (leave either field blank if unused). The app calls EmailJS over HTTPS. A delivery row is written to Supabase only after EmailJS returns success.
 

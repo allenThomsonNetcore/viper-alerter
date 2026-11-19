@@ -3,11 +3,28 @@ from __future__ import annotations
 
 import smtplib
 from email.message import EmailMessage
+from datetime import datetime, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import requests
 
 from checker.config import Config
+
+IST = ZoneInfo("Asia/Kolkata")
+
+
+def format_ist(value: datetime) -> str:
+    """Format a timezone-aware datetime for alert emails in Indian time."""
+    return value.astimezone(IST).strftime("%d %b %Y, %I:%M:%S %p IST")
+
+
+def format_epoch_ms_ist(value: Any) -> str:
+    """Convert an API millisecond epoch timestamp to an IST email value."""
+    try:
+        return format_ist(datetime.fromtimestamp(float(value) / 1000, timezone.utc))
+    except (TypeError, ValueError, OverflowError, OSError):
+        return "none"
 
 
 class Notifier:
@@ -38,18 +55,22 @@ class Notifier:
             raise RuntimeError("No Slack or email notifier configured")
 
 
-def alert_text(site: Any, result: dict[str, Any], host: str) -> tuple[str, str]:
+def alert_text(site: Any, result: dict[str, Any], host: str,
+               checked_at: datetime | None = None) -> tuple[str, str]:
     """Format an indexing alert subject and plain-text body."""
     state = result["state"]
-    scheduled = result["scheduled_time"].astimezone().astimezone(__import__("datetime").timezone.utc).isoformat()
+    scheduled = format_ist(result["scheduled_time"])
     entry = result.get("latest_entry") or {}
+    entry_timestamp_text = format_epoch_ms_ist(entry.get("timeStamp"))
+    checked_text = format_ist(checked_at) if checked_at else "not provided"
     suggestions = {"missing": "Check the feed pull pipeline; the status endpoint cannot show the root cause.",
                    "stuck": "Check the indexing job and its worker logs.", "failed": "Inspect the failure message and indexing logs.",
                    "rejected": "Check feed validation and rejection details.", "unknown": "Review the raw status and code with the platform team."}
     subject = f"Indexing alert: {state} - {site.site_key} [{site.region}]"
     body = (f"Region: {site.region}\nSite: {site.site_key}\nVersion: {site.version}\nApp: {site.app}\n"
-            f"Scheduled time (UTC): {scheduled}\nState: {state}\n"
+            f"Scheduled time (IST): {scheduled}\nChecked at (IST): {checked_text}\nState: {state}\n"
             f"How long overdue: {result['overdue_minutes']} minutes\nLatest history entry: status={entry.get('status', 'none')}, "
-            f"code={entry.get('code', 'none')}, date={entry.get('date', 'none')}, message={entry.get('message', 'none')}\n"
+            f"code={entry.get('code', 'none')}, API timestamp (IST): {entry_timestamp_text}, "
+            f"message={entry.get('message', 'none')}\n"
             f"Status URL: https://{host}/api/{site.site_key}/catalog/status\nSuggested next check: {suggestions.get(state, 'Review the run status.')}")
     return subject, body

@@ -13,11 +13,11 @@
       <table><thead><tr><th>State</th><th>Scheduled (IST)</th><th>Checked (IST)</th><th>API entry</th><th>Alert sent</th><th>Message</th></tr></thead>
       <tbody>{% for row in rows %}{% set entry = row.latest_entry or {} %}
         <tr>
-          <td data-label="State"><span class="state-pill state-{{ row.state|replace('_', '-') }}"><span class="state-dot"></span>{{ row.state|replace('_', ' ') }}</span></td>
+          <td data-label="State"><span class="state-pill state-{{ row.state|replace('_', '-') }}"><span class="state-dot"></span>{{ row.state|replace('_', ' ') }}</span>{% if row.state == 'pending' %}<span class="cell-sub">Still within the wait window</span>{% elif row.state == 'missing' %}<span class="cell-sub">Wait window passed with no matching API entry</span>{% endif %}</td>
           <td data-label="Scheduled (IST)"><time class="ist-time" data-utc="{{ row.scheduled_time }}">{{ row.scheduled_time }}</time></td><td data-label="Checked (IST)"><time class="ist-time" data-utc="{{ row.checked_at }}">{{ row.checked_at }}</time></td>
           <td data-label="API entry">{% if entry %}{{ entry.status or "Unknown" }}{% if entry.code is defined %} · {{ entry.code }}{% endif %}{% else %}<span class="muted" title="No API entry matched this site's scheduled run">No entry for this run</span>{% endif %}</td>
           <td data-label="Alert"><span class="alert-indicator {{ 'alert-sent' if row.alert_sent else 'alert-none' }}">{{ "Sent" if row.alert_sent else "—" }}</span></td>
-          <td data-label="Message" class="message-cell">{{ entry.message or row.error_message or "—" }}</td>
+          <td data-label="Message" class="message-cell">{% if entry.message %}{{ entry.message }}{% elif row.error_message %}{{ row.error_message }}{% elif row.state == 'pending' %}<span class="muted">Waiting for the API entry; the allowed wait period has not ended.</span>{% elif row.state == 'missing' %}<span class="muted">The allowed wait period ended without an API entry for this scheduled run.</span>{% else %}<span class="muted">No message was provided by the API.</span>{% endif %}</td>
         </tr>
       {% endfor %}</tbody></table>
     </div>

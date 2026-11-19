@@ -13,7 +13,7 @@ from checker.config import Config
 from checker.csv_loader import LocalLoader, ObjectStorageLoader, GoogleSheetLoader, parse_sites
 from checker.emailjs_notifier import EmailJSNotifier
 from checker.evaluator import evaluate, schedule_times
-from checker.notifiers import alert_text
+from checker.notifiers import alert_text, format_epoch_ms_ist, format_ist
 from checker.status_client import StatusClient
 from checker.supabase_store import SupabaseStore
 
@@ -117,6 +117,7 @@ def run_checks(cfg: Config, *, now: datetime | None = None) -> dict[str, Any]:
             state = result["state"]
             entry = result.get("latest_entry") or {}
             scheduled_iso = scheduled.isoformat()
+            scheduled_ist = format_ist(scheduled)
             prior_run = store.get_run(site.region, site.site_key, scheduled_iso)
             prior_state = prior_run.get("state") if prior_run else None
             prior_episode = prior_run.get("alert_episode_key") if prior_run else None
@@ -140,13 +141,19 @@ def run_checks(cfg: Config, *, now: datetime | None = None) -> dict[str, Any]:
                     episode_key = _digest([site.region, site.site_key, scheduled_iso,
                                            state, checked_at.isoformat()])
                 run_record["alert_episode_key"] = episode_key
-                subject, body = alert_text(site, result, cfg.region_hosts[site.region])
+                subject, body = alert_text(site, result, cfg.region_hosts[site.region], checked_at)
+                try:
+                    api_timestamp_ist = format_epoch_ms_ist(entry["timeStamp"])
+                except (KeyError, TypeError, ValueError, OverflowError, OSError):
+                    api_timestamp_ist = "none"
                 try:
                     sent = _deliver(store, notifier, key=episode_key, record=delivery_record,
                                     subject=subject, body=body,
                                     details={"site_key": site.site_key, "region": site.region,
                                              "version": site.version, "app": site.app,
-                                             "state": state, "scheduled_time": scheduled.isoformat(),
+                                             "state": state, "scheduled_time": scheduled_ist,
+                                             "checked_at": format_ist(checked_at),
+                                             "api_timestamp": api_timestamp_ist,
                                              "status_url": status_url}, dry_run=cfg.dry_run)
                 except Exception as exc:
                     counts["delivery_errors"] += 1
@@ -165,14 +172,15 @@ def run_checks(cfg: Config, *, now: datetime | None = None) -> dict[str, Any]:
                     recovery_key = _digest([recovery_episode, "recovered"])
                     run_record["alert_episode_key"] = recovery_episode
                     try:
-                        recovery_body = f"Run scheduled {scheduled.isoformat()} UTC recovered.\nStatus URL: {status_url}"
+                        recovery_body = f"Run scheduled {scheduled_ist} recovered (IST).\nStatus URL: {status_url}"
                         recovery_sent = _deliver(store, notifier, key=recovery_key,
                                         record={**delivery_record, "kind": "recovered"},
                                         subject=f"Indexing alert: recovered - {site.site_key} [{site.region}]",
                                         body=recovery_body,
                                         details={"site_key": site.site_key, "region": site.region,
                                                  "version": site.version, "app": site.app,
-                                                 "state": "recovered", "scheduled_time": scheduled.isoformat(),
+                                                 "state": "recovered", "scheduled_time": scheduled_ist,
+                                                 "checked_at": format_ist(checked_at),
                                                  "status_url": status_url}, dry_run=cfg.dry_run)
                         if recovery_sent or store.get_delivery(recovery_key):
                             run_record["alert_episode_key"] = None

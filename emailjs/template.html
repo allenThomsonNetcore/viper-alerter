@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>{{subject}}</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f3f6fa;font-family:Arial,Helvetica,sans-serif;color:#17243a;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+      Viper indexing alert: {{state}} for {{site_key}} in {{region}}.
+    </div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f3f6fa;padding:28px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="640" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:640px;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+            <tr>
+              <td style="padding:22px 26px;background:#101a2c;color:#ffffff;">
+                <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#b7c4d7;">Viper · Indexing monitor</div>
+                <div style="padding-top:8px;font-size:23px;font-weight:700;">{{subject}}</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px 26px 10px;">
+                <p style="margin:0 0 18px;color:#58677d;font-size:14px;line-height:1.6;">
+                  An indexing status needs attention. All timestamps below are shown in Indian Standard Time (IST).
+                </p>
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;font-size:14px;">
+                  <tr><td style="padding:9px 0;border-bottom:1px solid #edf0f4;color:#718096;width:38%;">Site key</td><td style="padding:9px 0;border-bottom:1px solid #edf0f4;font-weight:700;word-break:break-word;">{{site_key}}</td></tr>
+                  <tr><td style="padding:9px 0;border-bottom:1px solid #edf0f4;color:#718096;">Region</td><td style="padding:9px 0;border-bottom:1px solid #edf0f4;">{{region}}</td></tr>
+                  <tr><td style="padding:9px 0;border-bottom:1px solid #edf0f4;color:#718096;">Version / app</td><td style="padding:9px 0;border-bottom:1px solid #edf0f4;">{{version}} / {{app}}</td></tr>
+                  <tr><td style="padding:9px 0;border-bottom:1px solid #edf0f4;color:#718096;">Status</td><td style="padding:9px 0;border-bottom:1px solid #edf0f4;font-weight:700;">{{state}}</td></tr>
+                  <tr><td style="padding:9px 0;border-bottom:1px solid #edf0f4;color:#718096;">Scheduled run (IST)</td><td style="padding:9px 0;border-bottom:1px solid #edf0f4;word-break:break-word;">{{scheduled_time}}</td></tr>
+                  <tr><td style="padding:9px 0;border-bottom:1px solid #edf0f4;color:#718096;">Checked at (IST)</td><td style="padding:9px 0;border-bottom:1px solid #edf0f4;word-break:break-word;">{{checked_at}}</td></tr>
+                  <tr><td style="padding:9px 0;border-bottom:1px solid #edf0f4;color:#718096;">API entry time (IST)</td><td style="padding:9px 0;border-bottom:1px solid #edf0f4;word-break:break-word;">{{api_timestamp}}</td></tr>
+                </table>
+                <div style="margin:20px 0 8px;color:#718096;font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;">Details</div>
+                <div style="padding:14px 16px;border:1px solid #e3e9f0;border-radius:8px;background:#f8fafc;font-size:13px;line-height:1.65;white-space:pre-wrap;word-break:break-word;">{{message}}</div>
+                <p style="margin:20px 0 8px;">
+                  <a href="{{status_url}}" style="display:inline-block;padding:11px 16px;border-radius:7px;background:#2766d6;color:#ffffff;text-decoration:none;font-size:13px;font-weight:700;">Open status API</a>
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 26px;border-top:1px solid #edf0f4;color:#8490a0;font-size:11px;line-height:1.5;">
+                This is an automated message from Viper. Do not reply to this email.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
