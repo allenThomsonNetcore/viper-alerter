@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: viper-alerter
+  namespace: argo
+  labels:
+    app: viper-alerter
+    job: workflow
+    deploy_mode: auto
+    cluster: gcp
+spec:
+  schedule: "*/30 * * * *"
+  timezone: UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  workflowSpec:
+    workflowTemplateRef:
+      name: viper-alerter
+    arguments:
+      parameters:
+        - name: container-image
+          value: registry.example.com/unbxd/viper-alerter:latest

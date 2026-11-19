@@ -1,0 +1,60 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: sftp-cleanup
+  namespace: argo
+  labels:
+    app: sftp-cleanup
+    job: workflow
+    test_mode: enable
+    deploy_mode: auto
+    cluster: gcp
+spec:
+  entrypoint: sftp-cleanup
+  podGC:
+    strategy: OnWorkflowSuccess
+  ttlStrategy:
+    secondsAfterCompletion: 10
+    secondsAfterSuccess: 5
+    secondsAfterFailure: 1800
+  arguments:
+    parameters:
+      - name: docker-registry-url
+        value: ""
+      - name: sftp-hostname
+        value: "sftp.unbxdapi.com"
+      - name: sftp-port
+        value: "22"
+      - name: sftp-username
+        value: ""
+      - name: sftp-password
+        value: ""
+      - name: strategies
+        value: "[]"
+      - name: retry-limit
+        value: "2"
+  templates:
+    - name: sftp-cleanup
+      retryStrategy:
+        limit: "{{workflow.parameters.retry-limit}}"
+        retryPolicy: "Always"
+      container:
+        name: sftp-cleanup
+        image: "{{workflow.parameters.docker-registry-url}}/solution-jobs-v3:v1.17.11"
+        imagePullPolicy: Always
+        command: ["python", "sftp_cleanup/main.py"]
+        args:
+          - "--sftp-hostname"
+          - "{{workflow.parameters.sftp-hostname}}"
+          - "--sftp-port"
+          - "{{workflow.parameters.sftp-port}}"
+          - "--sftp-username"
+          - "{{workflow.parameters.sftp-username}}"
+          - "--sftp-password"
+          - "{{workflow.parameters.sftp-password}}"
+          - "--strategies"
+          - "{{workflow.parameters.strategies}}"
+        resources:
+          requests:
+            memory: 256Mi
+            cpu: 100m

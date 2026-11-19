@@ -1,0 +1,292 @@
+name: Solution Jobs V3 Plugins
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'plugins/**'
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    paths:
+      - 'plugins/**'
+  release:
+    types: [published, edited]
+    paths:
+      - 'plugins/**'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    if: >-
+      github.repository == 'unbxd/solution-jobs-v3' &&
+      (
+        github.event_name == 'push' ||
+        github.event_name == 'release' ||
+        (github.event_name == 'pull_request' && github.event.action != 'closed')
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      packages: write
+      contents: read
+    env:
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION}}
+      GCR_URL: ${{ secrets.GCR_URL }}
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GITHUB_TOKEN: ${{ secrets.BOT_ACCESS_TOKEN_PAT }}
+    outputs:
+      build_tag: ${{ steps.extract_tag.outputs.build_tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract Tag
+        id: extract_tag
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          TAG=${{ github.event.release.tag_name }}
+          tag="PR_${GITHUB_ACTOR}_${GITHUB_HEAD_REF}"
+          if [ -z "$GITHUB_HEAD_REF" ]; then
+              tag=latest
+              if [ -n "$TAG" ]; then
+                  tag=$TAG
+              fi
+          else
+              tag="PR_${GITHUB_ACTOR}_${GITHUB_HEAD_REF}"
+          fi
+          tag="${tag//\//_}"
+          echo "build_tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_OIDC_ROLE_ARN }}
+          aws-region: 'us-east-2'
+          audience: sts.amazonaws.com
+          role-session-name: github-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Configure Google Credentials
+        id: setup-gcloud
+        uses: google-github-actions/setup-gcloud@v0
+        with:
+          service_account_key: ${{ secrets.GCR_SERVICE_KEY }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          export_default_credentials: true
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Push multi-arch image to ECR and GCR
+        id: build-and-push-docker-image
+        env:
+          BUILD_TAG: ${{ steps.extract_tag.outputs.build_tag }}
+          ECR_REPOSITORY: 'solution-jobs-v3'
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          gcloud auth configure-docker -q
+          ECR_IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$BUILD_TAG"
+          GCR_IMAGE="$GCR_URL/$GCP_PROJECT_ID/$ECR_REPOSITORY:$BUILD_TAG"
+          echo "$ECR_IMAGE"
+          echo "$GCR_IMAGE"
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            -t $ECR_IMAGE \
+            -t $GCR_IMAGE \
+            --push \
+            plugins
+
+  argo_deploy:
+    if: >-
+      github.repository == 'unbxd/solution-jobs-v3' &&
+      (
+        (github.event_name == 'pull_request' && github.event.action != 'closed') ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      )
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GITHUB_TOKEN: ${{ secrets.BOT_ACCESS_TOKEN_PAT }}
+      PROD_SOLUTIONS_ARGO_WORKFLOW_TOKEN: ${{ secrets.PROD_SOLUTIONS_ARGO_WORKFLOW_TOKEN }}
+      GCP_SOLUTIONS_ARGO_WORKFLOW_TOKEN: ${{ secrets.GCP_SOLUTIONS_ARGO_WORKFLOW_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: files
+        uses: tj-actions/changed-files@v47
+
+      - name: Setup python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+          architecture: 'x64'
+          cache: 'pip'
+
+      - name: Install python requirements
+        run: pip install -r ci/argo/requirements.txt
+
+      - name: Get plugin dirs with changes
+        id: change_dirs
+        run: |
+          PLUGIN_DIRS=()
+          for ADDED_MODIFIED_FILE in ${{ steps.files.outputs.all_changed_files }}; do
+            if [[ "$ADDED_MODIFIED_FILE" == plugins/* ]]; then
+              PLUGIN_DIRS+=("$(echo "$ADDED_MODIFIED_FILE" | cut -d/ -f2)")
+            fi
+          done
+          UNIQUE_PLUGIN_DIRS=()
+          while IFS= read -r -d '' x; do
+            UNIQUE_PLUGIN_DIRS+=("$x")
+          done < <(printf "%s\0" "${PLUGIN_DIRS[@]}" | sort -uz)
+          echo "plugin_changes_dirs=${UNIQUE_PLUGIN_DIRS[*]}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy plugin WorkflowTemplates
+        env:
+          PLUGIN_CHANGES_DIRS: ${{ steps.change_dirs.outputs.plugin_changes_dirs }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PLUGIN_IMAGE_TAG: ${{ needs.build.outputs.build_tag }}
+          DEPLOY_MODE: ${{ github.event_name == 'push' && 'create' || 'test' }}
+        run: |
+          PLUGIN_DIRS_ARR=($PLUGIN_CHANGES_DIRS)
+          if [ ${#PLUGIN_DIRS_ARR[@]} -eq 0 ]; then
+            echo "No plugin directories changed; skipping Argo deploy."
+            exit 0
+          fi
+
+          for PLUGIN_DIR in "${PLUGIN_DIRS_ARR[@]}"; do
+            if [ -z "$PLUGIN_DIR" ] || [ ! -d "plugins/$PLUGIN_DIR" ]; then
+              continue
+            fi
+
+            echo "Processing plugin: $PLUGIN_DIR (deploy_mode=$DEPLOY_MODE)"
+            cd "plugins/$PLUGIN_DIR"
+
+            export FOLDER_PATH_URL="" PACKAGE_PATH="" DOCKER_FLAG=True
+            if [ "$DEPLOY_MODE" = "test" ]; then
+              export PLUGIN_IMAGE_TAG
+            else
+              unset PLUGIN_IMAGE_TAG
+            fi
+
+            shopt -s nullglob
+            ARGO_FILES=(./argo/workflow_template/*.yml ./argo/workflow_template/*.yaml)
+            shopt -u nullglob
+
+            for ARGO_FILE in "${ARGO_FILES[@]}"; do
+              echo "Deploying template: $ARGO_FILE ($DEPLOY_MODE)"
+              ../../ci/argo/deploy.sh workflow_template "$ARGO_FILE" "$DEPLOY_MODE"
+            done
+
+            shopt -s nullglob
+            CRON_FILES=(./argo/cron_workflow/*.yml ./argo/cron_workflow/*.yaml)
+            shopt -u nullglob
+            for ARGO_FILE in "${CRON_FILES[@]}"; do
+              echo "Deploying CronWorkflow: $ARGO_FILE ($DEPLOY_MODE)"
+              ../../ci/argo/deploy.sh cron_workflow "$ARGO_FILE" "$DEPLOY_MODE"
+            done
+
+            cd ../..
+          done
+
+  argo_cleanup:
+    if: >-
+      github.repository == 'unbxd/solution-jobs-v3' &&
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      PROD_SOLUTIONS_ARGO_WORKFLOW_TOKEN: ${{ secrets.PROD_SOLUTIONS_ARGO_WORKFLOW_TOKEN }}
+      GCP_SOLUTIONS_ARGO_WORKFLOW_TOKEN: ${{ secrets.GCP_SOLUTIONS_ARGO_WORKFLOW_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: files
+        uses: tj-actions/changed-files@v47
+
+      - name: Setup python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+          architecture: 'x64'
+          cache: 'pip'
+
+      - name: Install python requirements
+        run: pip install -r ci/argo/requirements.txt
+
+      - name: Get plugin dirs with changes
+        id: change_dirs
+        run: |
+          PLUGIN_DIRS=()
+          for ADDED_MODIFIED_FILE in ${{ steps.files.outputs.all_changed_files }}; do
+            if [[ "$ADDED_MODIFIED_FILE" == plugins/* ]]; then
+              PLUGIN_DIRS+=("$(echo "$ADDED_MODIFIED_FILE" | cut -d/ -f2)")
+            fi
+          done
+          UNIQUE_PLUGIN_DIRS=()
+          while IFS= read -r -d '' x; do
+            UNIQUE_PLUGIN_DIRS+=("$x")
+          done < <(printf "%s\0" "${PLUGIN_DIRS[@]}" | sort -uz)
+          echo "plugin_changes_dirs=${UNIQUE_PLUGIN_DIRS[*]}" >> "$GITHUB_OUTPUT"
+
+      - name: Cleanup plugin WorkflowTemplates
+        env:
+          PLUGIN_CHANGES_DIRS: ${{ steps.change_dirs.outputs.plugin_changes_dirs }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          PLUGIN_DIRS_ARR=($PLUGIN_CHANGES_DIRS)
+          if [ ${#PLUGIN_DIRS_ARR[@]} -eq 0 ]; then
+            echo "No plugin directories changed; skipping Argo cleanup."
+            exit 0
+          fi
+
+          for PLUGIN_DIR in "${PLUGIN_DIRS_ARR[@]}"; do
+            if [ -z "$PLUGIN_DIR" ] || [ ! -d "plugins/$PLUGIN_DIR" ]; then
+              continue
+            fi
+
+            echo "Cleaning up plugin: $PLUGIN_DIR"
+            cd "plugins/$PLUGIN_DIR"
+
+            shopt -s nullglob
+            ARGO_FILES=(./argo/workflow_template/*.yml ./argo/workflow_template/*.yaml)
+            CRON_FILES=(./argo/cron_workflow/*.yml ./argo/cron_workflow/*.yaml)
+            shopt -u nullglob
+
+            for ARGO_FILE in "${ARGO_FILES[@]}"; do
+              echo "Cleanup template: $ARGO_FILE"
+              ../../ci/argo/deploy.sh workflow_template "$ARGO_FILE" cleanup
+            done
+
+            for ARGO_FILE in "${CRON_FILES[@]}"; do
+              echo "Cleanup CronWorkflow: $ARGO_FILE"
+              ../../ci/argo/deploy.sh cron_workflow "$ARGO_FILE" cleanup
+            done
+
+            cd ../..
+          done

@@ -1,0 +1,110 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: catalog-indexing-alert
+  namespace: argo
+  labels:
+    app: catalog-indexing-alert
+    job: workflow
+    test_mode: enable
+    deploy_mode: auto
+    cluster: gcp
+spec:
+  arguments:
+    parameters:
+      - name: docker-registry-url
+        value: ""
+  entrypoint: checker
+  serviceAccountName: catalog-indexing-alert
+  activeDeadlineSeconds: 300
+  ttlStrategy:
+    secondsAfterCompletion: 3600
+  templates:
+    - name: checker
+      container:
+        name: checker
+        image: "{{workflow.parameters.docker-registry-url}}/solution-jobs-v3:latest"
+        imagePullPolicy: Always
+        command: ["python", "-m", "checker.main"]
+        env:
+          - name: PYTHONPATH
+            value: /home/catalog_indexing_alert
+          - name: CSV_SOURCE
+            value: /etc/catalog-indexing-alert/sites.csv
+          - name: CSV_SOURCE_TYPE
+            value: local
+          - name: CONFIG_YAML
+            value: /etc/catalog-indexing-alert/config.yaml
+          - name: STATE_BACKEND
+            value: kubernetes
+          - name: STATE_CONFIGMAP
+            value: catalog-indexing-alert-state
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: BUFFER_MINUTES
+            value: "15"
+          - name: MAX_WORKERS
+            value: "10"
+          - name: REQUEST_TIMEOUT_SECONDS
+            value: "15"
+          - name: TIMESTAMP_SEMANTICS
+            value: finish
+          - name: SLACK_WEBHOOK_URL
+            valueFrom:
+              secretKeyRef:
+                name: catalog-indexing-alert
+                key: slack-webhook-url
+                optional: true
+          - name: SMTP_HOST
+            valueFrom:
+              secretKeyRef:
+                name: catalog-indexing-alert
+                key: smtp-host
+                optional: true
+          - name: SMTP_PORT
+            valueFrom:
+              secretKeyRef:
+                name: catalog-indexing-alert
+                key: smtp-port
+                optional: true
+          - name: SMTP_USER
+            valueFrom:
+              secretKeyRef:
+                name: catalog-indexing-alert
+                key: smtp-user
+                optional: true
+          - name: SMTP_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: catalog-indexing-alert
+                key: smtp-password
+                optional: true
+          - name: EMAIL_FROM
+            valueFrom:
+              secretKeyRef:
+                name: catalog-indexing-alert
+                key: email-from
+                optional: true
+          - name: EMAIL_RECIPIENTS
+            valueFrom:
+              secretKeyRef:
+                name: catalog-indexing-alert
+                key: email-recipients
+                optional: true
+        volumeMounts:
+          - name: catalog-config
+            mountPath: /etc/catalog-indexing-alert
+            readOnly: true
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+      volumes:
+        - name: catalog-config
+          configMap:
+            name: catalog-indexing-alert-config

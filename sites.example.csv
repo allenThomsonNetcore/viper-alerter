@@ -1,4 +1,4 @@
 site_key,region,cron,max_duration_minutes
-ss-unbxd-dev-supertails43231684494776,apac,0 */3 * * *,120
-example-apac-store,apac,30 */2 * * *,90
-example-apac-nightly,apac,0 1 * * *,120
+ss-unbxd-dev-supertails43231684494776,sg,0 */3 * * *,120
+example-apac-store,sg,30 */2 * * *,90
+example-apac-nightly,sg,0 1 * * *,120

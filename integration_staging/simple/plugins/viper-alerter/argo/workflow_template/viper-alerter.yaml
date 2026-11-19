@@ -1,0 +1,106 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: viper-alerter
+  namespace: argo
+  labels:
+    app: viper-alerter
+    job: workflow
+    test_mode: enable
+    deploy_mode: auto
+    cluster: gcp
+spec:
+  entrypoint: checker
+  serviceAccountName: viper-alerter
+  activeDeadlineSeconds: 300
+  arguments:
+    parameters:
+      - name: container-image
+        value: registry.example.com/unbxd/viper-alerter:latest
+  templates:
+    - name: checker
+      container:
+        name: checker
+        image: "{{workflow.parameters.container-image}}"
+        imagePullPolicy: Always
+        command: ["python", "-m", "checker.main"]
+        env:
+          - name: CSV_SOURCE
+            value: /etc/viper-alerter/sites.csv
+          - name: CSV_SOURCE_TYPE
+            value: local
+          - name: CONFIG_YAML
+            value: /etc/viper-alerter/config.yaml
+          - name: STATE_BACKEND
+            value: kubernetes
+          - name: STATE_CONFIGMAP
+            value: viper-alerter-state
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: BUFFER_MINUTES
+            value: "15"
+          - name: MAX_WORKERS
+            value: "10"
+          - name: REQUEST_TIMEOUT_SECONDS
+            value: "15"
+          - name: TIMESTAMP_SEMANTICS
+            value: finish
+          - name: SLACK_WEBHOOK_URL
+            valueFrom:
+              secretKeyRef:
+                name: viper-alerter
+                key: slack-webhook-url
+                optional: true
+          - name: SMTP_HOST
+            valueFrom:
+              secretKeyRef:
+                name: viper-alerter
+                key: smtp-host
+                optional: true
+          - name: SMTP_PORT
+            valueFrom:
+              secretKeyRef:
+                name: viper-alerter
+                key: smtp-port
+                optional: true
+          - name: SMTP_USER
+            valueFrom:
+              secretKeyRef:
+                name: viper-alerter
+                key: smtp-user
+                optional: true
+          - name: SMTP_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: viper-alerter
+                key: smtp-password
+                optional: true
+          - name: EMAIL_FROM
+            valueFrom:
+              secretKeyRef:
+                name: viper-alerter
+                key: email-from
+                optional: true
+          - name: EMAIL_RECIPIENTS
+            valueFrom:
+              secretKeyRef:
+                name: viper-alerter
+                key: email-recipients
+                optional: true
+        volumeMounts:
+          - name: config
+            mountPath: /etc/viper-alerter
+            readOnly: true
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: viper-alerter-config

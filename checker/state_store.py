@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Protocol
+
+import requests
 
 
 class StateStore(Protocol):
@@ -39,14 +40,20 @@ class FileStateStore:
 
 
 class ConfigMapStateStore:
-    """Kubernetes ConfigMap state store using kubectl resourceVersion CAS."""
+    """Kubernetes ConfigMap state store using resourceVersion compare-and-swap."""
     def __init__(self, name: str, namespace: str, retries: int = 5) -> None:
-        """Set ConfigMap identity and conflict retry count."""
+        """Set ConfigMap identity and configure in-cluster API access."""
         self.name, self.namespace, self.retries = name, namespace, retries
+        self.base_url = f"https://{os.environ['KUBERNETES_SERVICE_HOST']}:{os.getenv('KUBERNETES_SERVICE_PORT_HTTPS', '443')}"
+        token_path = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
+        self.token = token_path.read_text().strip()
+        self.ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+        self.url = f"{self.base_url}/api/v1/namespaces/{namespace}/configmaps/{name}"
 
     def _get(self) -> dict[str, Any]:
-        result = subprocess.run(["kubectl", "get", "configmap", self.name, "-n", self.namespace, "-o", "json"], check=True, capture_output=True, text=True)
-        return json.loads(result.stdout)
+        response = requests.get(self.url, headers={"Authorization": f"Bearer {self.token}"}, verify=self.ca_path, timeout=15)
+        response.raise_for_status()
+        return response.json()
 
     def load(self) -> dict[str, Any]:
         """Read records from ConfigMap data field."""
@@ -58,9 +65,9 @@ class ConfigMapStateStore:
         for _ in range(self.retries):
             obj = self._get()
             obj.setdefault("data", {})["records.json"] = json.dumps(records, separators=(",", ":"))
-            proc = subprocess.run(["kubectl", "replace", "-f", "-"], input=json.dumps(obj), capture_output=True, text=True)
-            if proc.returncode == 0: return
-            if "Conflict" not in proc.stderr and "conflict" not in proc.stderr: raise RuntimeError(proc.stderr)
+            response = requests.put(self.url, json=obj, headers={"Authorization": f"Bearer {self.token}"}, verify=self.ca_path, timeout=15)
+            if response.status_code == 200: return
+            if response.status_code != 409: response.raise_for_status()
         raise RuntimeError("ConfigMap state update conflict retry limit exceeded")
 
 

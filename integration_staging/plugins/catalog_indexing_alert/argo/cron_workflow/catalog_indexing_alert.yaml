@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: catalog-indexing-alert
+  namespace: argo
+  labels:
+    app: catalog-indexing-alert
+    job: workflow
+    deploy_mode: auto
+    cluster: gcp
+spec:
+  schedule: "*/30 * * * *"
+  timezone: UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  workflowSpec:
+    workflowTemplateRef:
+      name: catalog-indexing-alert
+    arguments:
+      parameters:
+        - name: docker-registry-url
+          value: ""
