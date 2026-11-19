@@ -8,6 +8,7 @@ def test_emailjs_sends_template_payload(monkeypatch):
     captured = {}
 
     class Response:
+        ok = True
         def raise_for_status(self):
             return None
 
@@ -40,3 +41,23 @@ def test_emailjs_requires_configuration():
         assert "EMAILJS_SERVICE_ID" in str(exc)
     else:
         raise AssertionError("Expected missing EmailJS settings to fail")
+
+
+def test_emailjs_rejection_includes_provider_detail(monkeypatch):
+    """A provider 403 includes its safe response text for alert diagnostics."""
+    class Response:
+        ok = False
+        status_code = 403
+        reason = "Forbidden"
+        text = "The public key is invalid"
+
+    monkeypatch.setattr("checker.emailjs_notifier.requests.post", lambda *args, **kwargs: Response())
+    cfg = Config(emailjs_service_id="service", emailjs_template_id="template",
+                 emailjs_public_key="public", emailjs_to_email="alerts@example.com")
+    try:
+        EmailJSNotifier(cfg).send("Subject", "Body")
+    except RuntimeError as exc:
+        assert "HTTP 403" in str(exc)
+        assert "public key is invalid" in str(exc)
+    else:
+        raise AssertionError("Expected EmailJS rejection to be reported")

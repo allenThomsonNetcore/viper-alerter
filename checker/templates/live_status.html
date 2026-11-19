@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Live feed status · Viper{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="60">{% endblock %}
+{% block content %}
+<main class="page-shell">
+  <section class="page-heading">
+    <div>
+      <p class="eyebrow">LIVE FEED API</p>
+      <h1>Current feed status</h1>
+      <p class="lede">Latest status returned by each site's feed status API. All timestamps are shown in IST.</p>
+    </div>
+    <div class="updated-card"><span class="pulse"></span><div><span class="small-label">Page fetched</span><time id="refreshed-at" class="ist-time" data-utc="{{ refreshed_at }}">{{ refreshed_at }}</time><span class="small-label">Refreshes every 60 seconds</span></div></div>
+  </section>
+
+  <section class="stat-grid live-stat-grid" aria-label="Live status counts">
+    <article class="stat-card"><span class="stat-label">Sites</span><strong>{{ rows|length }}</strong><span class="stat-foot">From the configured CSV</span></article>
+    <article class="stat-card stat-good"><span class="stat-label">Success</span><strong>{{ counts.get('success', 0) }}</strong><span class="stat-foot">Latest API status is successful</span></article>
+    <article class="stat-card stat-wait"><span class="stat-label">Indexing</span><strong>{{ counts.get('indexing', 0) }}</strong><span class="stat-foot">Currently processing</span></article>
+    <article class="stat-card stat-alert"><span class="stat-label">Rejected / failure</span><strong>{{ counts.get('rejected', 0) + counts.get('failure', 0) }}</strong><span class="stat-foot">Latest API status needs attention</span></article>
+  </section>
+
+  <section class="content-card">
+    <div class="card-heading live-heading">
+      <div><h2>All configured sites</h2><p>Each row is fetched directly from its feed status endpoint.</p></div>
+      <div class="live-filters">
+        <label class="search-box"><span class="sr-only">Search sites</span><span aria-hidden="true">⌕</span><input id="site-search" type="search" placeholder="Search site or region…" autocomplete="off"></label>
+        <label class="status-select-label">Status
+          <select id="status-filter" class="status-select">
+            <option value="all">All statuses</option><option value="indexing">Indexing</option><option value="rejected">Rejected</option><option value="success">Success</option><option value="failure">Failure</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    {% if rows %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Site key</th><th>Region</th><th>Version / app</th><th>Current status</th><th>API timestamp</th><th></th></tr></thead>
+        <tbody>
+        {% for row in rows %}
+          <tr class="live-row" data-state="{{ row.state }}" data-search="{{ (row.site_key ~ ' ' ~ row.region ~ ' ' ~ row.version ~ ' ' ~ row.app)|lower }}">
+            <td data-label="Site key"><strong class="break-word">{{ row.site_key }}</strong></td>
+            <td data-label="Region">{{ row.region }}</td>
+            <td data-label="Version / app"><span class="tag">{{ row.version }}</span> <span class="tag tag-soft">{{ row.app }}</span></td>
+            <td data-label="Current status"><span class="state-pill live-state-{{ row.state }}"><span class="state-dot"></span>{{ row.api_status or ('Unavailable' if row.error else 'No status') }}{% if row.code is not none %} · {{ row.code }}{% endif %}</span>{% if row.detail %}<span class="cell-sub" title="{{ row.error }}">{{ row.detail }}</span>{% endif %}</td>
+            <td data-label="API timestamp">{% if row.timestamp_ms is not none %}<time class="ist-api-time" data-ms="{{ row.timestamp_ms }}">{{ row.timestamp_ms }}</time>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td data-label="Status API"><a class="icon-link" href="{{ row.status_url }}" target="_blank" rel="noopener">Open API <span aria-hidden="true">↗</span></a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p id="live-empty" class="empty-state" hidden>No sites match these filters.</p>
+    {% else %}<div class="empty-state"><h3>No valid sites found</h3><p>Check the CSV source and its site rows.</p></div>{% endif %}
+    <div class="card-footer"><span>Live API data, fetched on page load</span><span>{{ rows|length }} site{{ 's' if rows|length != 1 else '' }}</span></div>
+  </section>
+</main>
+<script>
+  (() => {
+    const search = document.getElementById('site-search');
+    const filter = document.getElementById('status-filter');
+    const rows = [...document.querySelectorAll('.live-row')];
+    const empty = document.getElementById('live-empty');
+    const update = () => {
+      const query = search.value.trim().toLowerCase();
+      let shown = 0;
+      rows.forEach(row => {
+        const visible = row.dataset.search.includes(query) && (filter.value === 'all' || row.dataset.state === filter.value);
+        row.hidden = !visible;
+        if (visible) shown += 1;
+      });
+      empty.hidden = shown !== 0;
+    };
+    search.addEventListener('input', update);
+    filter.addEventListener('change', update);
+    document.querySelectorAll('.ist-api-time').forEach(el => {
+      const date = new Date(Number(el.dataset.ms));
+      const formatter = new Intl.DateTimeFormat('en-IN', {timeZone:'Asia/Kolkata', dateStyle:'medium', timeStyle:'medium'});
+      el.textContent = Number.isNaN(date.getTime()) ? '—' : formatter.format(date) + ' IST';
+      el.title = Number.isNaN(date.getTime()) ? '' : date.toISOString() + ' UTC';
+    });
+  })();
+</script>
+{% endblock %}

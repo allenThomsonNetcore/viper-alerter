@@ -10,17 +10,18 @@
   <section class="content-card">
     <div class="card-heading"><div><h2>Recent scheduled runs</h2><p>Latest status observations for this site.</p></div></div>
     <div class="table-wrap">
-      <table><thead><tr><th>State</th><th>Scheduled (UTC)</th><th>Checked (UTC)</th><th>API entry</th><th>Alert sent</th><th>Message</th></tr></thead>
+      <table><thead><tr><th>State</th><th>Scheduled (IST)</th><th>Checked (IST)</th><th>API entry</th><th>Alert sent</th><th>Message</th></tr></thead>
       <tbody>{% for row in rows %}{% set entry = row.latest_entry or {} %}
         <tr>
           <td data-label="State"><span class="state-pill state-{{ row.state|replace('_', '-') }}"><span class="state-dot"></span>{{ row.state|replace('_', ' ') }}</span></td>
-          <td data-label="Scheduled (UTC)">{{ row.scheduled_time }}</td><td data-label="Checked (UTC)">{{ row.checked_at }}</td>
-          <td data-label="API entry">{{ entry.status or "—" }}{% if entry.code is defined %} · {{ entry.code }}{% endif %}</td>
+          <td data-label="Scheduled (IST)"><time class="ist-time" data-utc="{{ row.scheduled_time }}">{{ row.scheduled_time }}</time></td><td data-label="Checked (IST)"><time class="ist-time" data-utc="{{ row.checked_at }}">{{ row.checked_at }}</time></td>
+          <td data-label="API entry">{% if entry %}{{ entry.status or "Unknown" }}{% if entry.code is defined %} · {{ entry.code }}{% endif %}{% else %}<span class="muted" title="No API entry matched this site's scheduled run">No entry for this run</span>{% endif %}</td>
           <td data-label="Alert"><span class="alert-indicator {{ 'alert-sent' if row.alert_sent else 'alert-none' }}">{{ "Sent" if row.alert_sent else "—" }}</span></td>
           <td data-label="Message" class="message-cell">{{ entry.message or row.error_message or "—" }}</td>
         </tr>
       {% endfor %}</tbody></table>
     </div>
   </section>
+  <p class="page-footnote">Scheduled is the planned run time from the CSV cron; Checked is when Viper queried the status API. Both are displayed in IST.</p>
 </main>
 {% endblock %}

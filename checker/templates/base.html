@@ -14,6 +14,10 @@
       <span class="brand-mark">V</span><span>Viper<span class="brand-muted"> / Indexing monitor</span></span>
     </a>
     {% if session.get('viper_authenticated') %}
+    <nav class="topnav" aria-label="Main navigation">
+      <a href="/" class="{% if request.path == '/' %}active{% endif %}">Alerts</a>
+      <a href="/live-status" class="{% if request.path == '/live-status' %}active{% endif %}">Live feed status</a>
+    </nav>
     <form action="{{ url_for('logout') }}" method="post" class="logout-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button class="button button-quiet" type="submit">Sign out</button>
@@ -21,5 +25,19 @@
     {% endif %}
   </header>
   {% block content %}{% endblock %}
+  <script>
+    (() => {
+      const formatter = new Intl.DateTimeFormat('en-IN', {
+        timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'medium'
+      });
+      document.querySelectorAll('.ist-time').forEach(el => {
+        const date = new Date(el.dataset.utc);
+        if (!Number.isNaN(date.getTime())) {
+          el.textContent = formatter.format(date) + ' IST';
+          el.title = date.toISOString() + ' UTC';
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

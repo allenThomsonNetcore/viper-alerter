@@ -4,7 +4,8 @@ from __future__ import annotations
 import hmac
 import logging
 import secrets
-from datetime import timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Any
 from urllib.parse import urlsplit
@@ -12,7 +13,9 @@ from urllib.parse import urlsplit
 from flask import Flask, abort, jsonify, redirect, render_template, request, session, url_for
 
 from checker.config import load_config
+from checker.csv_loader import GoogleSheetLoader, LocalLoader, ObjectStorageLoader, parse_sites
 from checker.service import run_checks
+from checker.status_client import StatusClient
 from checker.supabase_store import SupabaseAPIError, SupabaseStore
 
 LOGGER = logging.getLogger("viper.web")
@@ -84,6 +87,65 @@ def _latest_by_site(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if key not in latest:
             latest[key] = row
     return sorted(latest.values(), key=lambda row: (row.get("region", ""), row.get("site_key", "")))
+
+
+def _live_sites(cfg) -> list[dict[str, Any]]:
+    """Read configured sites and fetch their current status API snapshots."""
+    if cfg.csv_type == "sheets":
+        loader = GoogleSheetLoader()
+    elif cfg.csv_type in {"s3", "gcs", "object_storage"}:
+        loader = ObjectStorageLoader()
+    else:
+        loader = LocalLoader()
+    content = loader.load(cfg.site_csv_path)
+    sites, errors = parse_sites(content, cfg.region_hosts)
+    for error in errors:
+        LOGGER.warning("live status CSV row skipped: %s", error)
+
+    client = StatusClient(cfg.request_timeout, retries=1)
+    def fetch(site):
+        url = f"https://{cfg.region_hosts[site.region]}/api/{site.site_key}/catalog/status"
+        try:
+            history = client.fetch(cfg.region_hosts[site.region], site.site_key)
+            latest = max(history, key=lambda entry: _timestamp_value(entry.get("timeStamp")), default=None)
+            raw_status = str((latest or {}).get("status", "")).upper()
+            code = (latest or {}).get("code")
+            if raw_status in {"INDEXING", "PROCESSING", "IN_PROGRESS"}:
+                state = "indexing"
+            elif raw_status == "REJECTED":
+                state = "rejected"
+            elif raw_status in {"INDEXED", "SUCCESS", "SUCCEEDED"} and code in (None, 200):
+                state = "success"
+            elif raw_status in {"FAILED", "ERROR"} or (code is not None and code != 200 and raw_status):
+                state = "failure"
+            else:
+                state = "no_status"
+            return {
+                "site_key": site.site_key, "region": site.region, "version": site.version, "app": site.app,
+                "state": state, "api_status": (latest or {}).get("status", ""),
+                "code": code, "timestamp_ms": (latest or {}).get("timeStamp"),
+                "status_url": url, "error": "",
+                "detail": "API returned an empty history" if not history else ("Latest entry has no status field" if not raw_status else ""),
+            }
+        except Exception as exc:
+            return {"site_key": site.site_key, "region": site.region, "version": site.version, "app": site.app,
+                    "state": "no_status", "api_status": "", "code": None, "timestamp_ms": None,
+                    "status_url": url, "error": str(exc), "detail": "Could not fetch the status API"}
+
+    rows = []
+    with ThreadPoolExecutor(max_workers=max(1, min(cfg.max_workers, 10))) as pool:
+        futures = [pool.submit(fetch, site) for site in sites]
+        for future in as_completed(futures):
+            rows.append(future.result())
+    return sorted(rows, key=lambda row: (row["region"], row["site_key"]))
+
+
+def _timestamp_value(value: Any) -> float:
+    """Convert the feed API millisecond timestamp to a sortable number."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return -1.0
 
 
 @app.get("/healthz")
@@ -188,6 +250,18 @@ def dashboard():
         counts[row.get("state", "unknown")] = counts.get(row.get("state", "unknown"), 0) + 1
     return render_template("index.html", rows=rows, counts=counts,
                            csrf_token=_csrf_token(), last_checked=max((r.get("checked_at", "") for r in rows), default=""))
+
+
+@app.get("/live-status")
+def live_status():
+    """Fetch and display the latest status API entry for every CSV site."""
+    rows = _live_sites(load_config())
+    counts: dict[str, int] = {}
+    for row in rows:
+        counts[row["state"]] = counts.get(row["state"], 0) + 1
+    return render_template("live_status.html", rows=rows, counts=counts,
+                           refreshed_at=datetime.now(timezone.utc).isoformat(),
+                           csrf_token=_csrf_token())
 
 
 @app.get("/site/<site_key>")

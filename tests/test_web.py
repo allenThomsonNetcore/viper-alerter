@@ -60,6 +60,28 @@ def test_dashboard_renders_mobile_table(monkeypatch):
     assert b"viper.css" in response.data
 
 
+def test_live_status_page_shows_localized_feed_timestamp_and_filter(monkeypatch):
+    """Live page renders API status, status selector and open endpoint."""
+    from checker import web
+    monkeypatch.setattr(web, "load_config", lambda: Config(dashboard_user="operator", dashboard_password="secret", flask_secret_key="test-key"))
+    monkeypatch.setattr(web, "_live_sites", lambda cfg: [{
+        "site_key": "test-site", "region": "us", "version": "v2", "app": "shopify",
+        "state": "indexing", "api_status": "INDEXING", "code": 200,
+        "timestamp_ms": 1795110000000, "status_url": "https://feed.unbxd.io/api/test-site/catalog/status", "error": "",
+    }])
+    web.app.secret_key = "test-key"
+    client = web.app.test_client()
+    with client.session_transaction() as state:
+        state["viper_authenticated"] = True
+        state["csrf_token"] = "csrf"
+    response = client.get("/live-status")
+    assert response.status_code == 200
+    assert b"Current feed status" in response.data
+    assert b"INDEXING" in response.data
+    assert b"value=\"rejected\"" in response.data
+    assert b"https://feed.unbxd.io/api/test-site/catalog/status" in response.data
+
+
 def test_run_endpoint_rejects_bad_token(monkeypatch):
     """The external scheduler endpoint rejects an invalid bearer token."""
     from checker import web

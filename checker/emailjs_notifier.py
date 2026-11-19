@@ -46,4 +46,9 @@ class EmailJSNotifier:
         if cfg.emailjs_private_key:
             payload["accessToken"] = cfg.emailjs_private_key
         response = requests.post(EMAILJS_SEND_URL, json=payload, timeout=20)
-        response.raise_for_status()
+        if not response.ok:
+            # EmailJS returns a short explanation in the response body (for
+            # example, an invalid public key or blocked service). Preserve it
+            # in the run record so a 403 is diagnosable from the dashboard.
+            detail = " ".join(response.text.split())[:500] or response.reason
+            raise RuntimeError(f"EmailJS rejected the request (HTTP {response.status_code}): {detail}")

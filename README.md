@@ -7,6 +7,7 @@ The CSV header is `site_key,region,cron,max_duration_minutes,version,app`. `vers
 ## How the service runs
 
 - Render runs the web application and dashboard.
+- `/live-status` reads the configured site CSV and fetches the latest entry from each site's status API when opened; timestamps are shown in the viewer's local time zone.
 - cron-job.org calls the authenticated `POST /internal/run-checks` endpoint every 30 minutes. The check is synchronous, so the request returns after that run has completed.
 - Supabase stores scheduled run snapshots and successful notification deliveries. The browser never receives the Supabase service-role key.
 - The optional `GET /healthz` endpoint can be pinged by an uptime monitor. It is not the scheduler and does not run checks.
