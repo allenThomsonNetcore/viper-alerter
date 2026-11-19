@@ -1,2 +1,2 @@
 site_key,region,cron,max_duration_minutes,version,app
-ss-unbxd-dev-supertails43231684494776,sg,0 */3 * * *,120,v2,shopify
+ss-unbxd-aus-shoplc-shopify-prod81808178342571,us,10 */3 * * *,120,v2,shopify
