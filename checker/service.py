@@ -13,7 +13,7 @@ from checker.config import Config
 from checker.csv_loader import LocalLoader, ObjectStorageLoader, GoogleSheetLoader, parse_sites
 from checker.emailjs_notifier import EmailJSNotifier
 from checker.evaluator import evaluate, schedule_times
-from checker.notifiers import alert_text, format_epoch_ms_ist, format_ist
+from checker.notifiers import alert_text, expected_cause, format_epoch_ms_ist, format_ist
 from checker.status_client import StatusClient
 from checker.supabase_store import SupabaseStore
 
@@ -154,6 +154,7 @@ def run_checks(cfg: Config, *, now: datetime | None = None) -> dict[str, Any]:
                                              "state": state, "scheduled_time": scheduled_ist,
                                              "checked_at": format_ist(checked_at),
                                              "api_timestamp": api_timestamp_ist,
+                                             "expected_cause": expected_cause(state),
                                              "status_url": status_url}, dry_run=cfg.dry_run)
                 except Exception as exc:
                     counts["delivery_errors"] += 1

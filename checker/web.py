@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 from flask import Flask, abort, jsonify, redirect, render_template, request, session, url_for
 
 from checker.config import load_config
-from checker.csv_loader import GoogleSheetLoader, LocalLoader, ObjectStorageLoader, parse_sites
+from checker.csv_loader import GoogleSheetLoader, LocalLoader, ObjectStorageLoader, Site, describe_cron, parse_sites
 from checker.service import run_checks
 from checker.status_client import StatusClient
 from checker.supabase_store import SupabaseAPIError, SupabaseStore
@@ -89,18 +89,28 @@ def _latest_by_site(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(latest.values(), key=lambda row: (row.get("region", ""), row.get("site_key", "")))
 
 
-def _live_sites(cfg) -> list[dict[str, Any]]:
-    """Read configured sites and fetch their current status API snapshots."""
+def _configured_sites(cfg) -> list[Site]:
+    """Load and validate the site's CSV configuration."""
     if cfg.csv_type == "sheets":
         loader = GoogleSheetLoader()
     elif cfg.csv_type in {"s3", "gcs", "object_storage"}:
         loader = ObjectStorageLoader()
     else:
         loader = LocalLoader()
-    content = loader.load(cfg.site_csv_path)
+    try:
+        content = loader.load(cfg.site_csv_path)
+    except Exception:
+        LOGGER.exception("could not load configured site CSV")
+        return []
     sites, errors = parse_sites(content, cfg.region_hosts)
     for error in errors:
         LOGGER.warning("live status CSV row skipped: %s", error)
+    return sites
+
+
+def _live_sites(cfg) -> list[dict[str, Any]]:
+    """Read configured sites and fetch their current status API snapshots."""
+    sites = _configured_sites(cfg)
 
     client = StatusClient(cfg.request_timeout, retries=1)
     def fetch(site):
@@ -244,7 +254,22 @@ def trigger_checks():
 @app.get("/")
 def dashboard():
     """Render current site status table from Supabase."""
-    rows = _latest_by_site(_store().latest_runs())
+    cfg = load_config()
+    recorded = {(row.get("region", ""), row.get("site_key", "")): row
+                for row in _latest_by_site(_store().latest_runs())}
+    rows = []
+    for site in _configured_sites(cfg):
+        key = (site.region, site.site_key)
+        row = dict(recorded.get(key, {}))
+        row.update({"site_key": site.site_key, "region": site.region, "version": site.version,
+                    "app": site.app, "cron": site.cron, "cron_description": describe_cron(site.cron)})
+        row.setdefault("state", "no_data")
+        row.setdefault("scheduled_time", "")
+        row.setdefault("checked_at", "")
+        row.setdefault("latest_entry", None)
+        row.setdefault("alert_sent", False)
+        row.setdefault("status_url", f"https://{cfg.region_hosts[site.region]}/api/{site.site_key}/catalog/status")
+        rows.append(row)
     counts: dict[str, int] = {}
     for row in rows:
         counts[row.get("state", "unknown")] = counts.get(row.get("state", "unknown"), 0) + 1

@@ -1,5 +1,6 @@
 """Web endpoint access-control and rendering tests."""
 from checker.config import Config
+from checker.csv_loader import Site
 
 
 def test_health_endpoint_is_public(monkeypatch):
@@ -48,6 +49,7 @@ def test_dashboard_renders_mobile_table(monkeypatch):
 
     monkeypatch.setattr(web, "load_config", lambda: Config(dashboard_user="operator", dashboard_password="secret", flask_secret_key="test-key"))
     monkeypatch.setattr(web, "_store", Store)
+    monkeypatch.setattr(web, "_configured_sites", lambda cfg: [Site("test-site", "sg", "0 */3 * * *", 120, "v2", "shopify")])
     web.app.secret_key = "test-key"
     client = web.app.test_client()
     with client.session_transaction() as state:
@@ -57,6 +59,7 @@ def test_dashboard_renders_mobile_table(monkeypatch):
     assert response.status_code == 200
     assert b"test-site" in response.data
     assert b"Version / App" in response.data
+    assert b"Every 3 hours at minute 00 UTC" in response.data
     assert b"viper.css" in response.data
 
 

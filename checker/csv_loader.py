@@ -104,3 +104,55 @@ def parse_sites(content: str, region_hosts: dict[str, str]) -> tuple[list[Site],
         seen.add(key)
         sites.append(Site(site_key, region, expr, duration, version, app))
     return sites, errors
+
+
+def describe_cron(expression: str) -> str:
+    """Describe common five-field cron schedules in plain English (UTC)."""
+    fields = expression.split()
+    if len(fields) != 5:
+        return f"Custom cron schedule (UTC): {expression}"
+    minute, hour, day, month, weekday = fields
+    if not croniter.is_valid(expression):
+        return f"Invalid cron schedule: {expression}"
+
+    if (hour, day, month, weekday) == ("*", "*", "*", "*") and minute.startswith("*/"):
+        try:
+            interval = int(minute[2:])
+        except ValueError:
+            interval = 0
+        if interval == 40:
+            return "At :00 and :40 every hour (the gaps alternate 40 and 20 minutes)"
+        if interval == 1:
+            return "Every minute"
+        if interval > 0:
+            return f"Every {interval} minutes"
+
+    if (day, month, weekday) == ("*", "*", "*") and hour.startswith("*/") and minute.isdigit():
+        try:
+            interval = int(hour[2:])
+            minute_value = int(minute)
+        except ValueError:
+            interval = minute_value = 0
+        if interval == 1:
+            return f"Every hour at minute {minute_value:02d} UTC"
+        if interval > 1 and 0 <= minute_value <= 59:
+            return f"Every {interval} hours at minute {minute_value:02d} UTC"
+
+    if minute.isdigit() and hour.isdigit():
+        try:
+            minute_value, hour_value = int(minute), int(hour)
+            if not (0 <= minute_value <= 59 and 0 <= hour_value <= 23):
+                raise ValueError
+        except ValueError:
+            return f"Custom cron schedule (UTC): {expression}"
+        time_text = f"{hour_value:02d}:{minute_value:02d} UTC"
+        if day == month == weekday == "*":
+            return f"Daily at {time_text}"
+        if day.isdigit() and month == weekday == "*":
+            return f"Monthly on day {int(day)} at {time_text}"
+        if day == month == "*" and weekday != "*":
+            names = {"0": "Sun", "1": "Mon", "2": "Tue", "3": "Wed", "4": "Thu", "5": "Fri", "6": "Sat", "7": "Sun"}
+            weekdays = [names.get(item, item) for item in weekday.split(",")]
+            return f"Weekly on {', '.join(weekdays)} at {time_text}"
+
+    return f"Custom cron schedule (UTC): {expression}"

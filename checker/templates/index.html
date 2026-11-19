@@ -27,16 +27,17 @@
     {% if rows %}
     <div class="table-wrap">
       <table id="site-table">
-        <thead><tr><th>Site</th><th>Region</th><th>Version / App</th><th>State</th><th>Scheduled (IST)</th><th>Latest API entry</th><th>Alert</th><th></th></tr></thead>
+        <thead><tr><th>Site</th><th>Region</th><th>Version / App</th><th>Indexing schedule</th><th>State</th><th>Scheduled (IST)</th><th>Latest API entry</th><th>Alert</th><th></th></tr></thead>
         <tbody>
         {% for row in rows %}{% set entry = row.latest_entry or {} %}
           <tr class="site-row" data-search="{{ (row.site_key ~ ' ' ~ row.region ~ ' ' ~ row.version ~ ' ' ~ row.app ~ ' ' ~ row.state)|lower }}">
-            <td data-label="Site"><a class="site-link" href="/site/{{ row.site_key|urlencode }}?region={{ row.region|urlencode }}">{{ row.site_key }}</a><span class="cell-sub">Checked <time class="ist-time" data-utc="{{ row.checked_at }}">{{ row.checked_at }}</time></span></td>
+            <td data-label="Site"><a class="site-link" href="/site/{{ row.site_key|urlencode }}?region={{ row.region|urlencode }}">{{ row.site_key }}</a><span class="cell-sub">{% if row.checked_at %}Checked <time class="ist-time" data-utc="{{ row.checked_at }}">{{ row.checked_at }}</time>{% else %}Not checked yet{% endif %}</span></td>
             <td data-label="Region">{{ row.region }}</td>
             <td data-label="Version / App"><span class="tag">{{ row.version }}</span><span class="tag tag-soft">{{ row.app }}</span></td>
-            <td data-label="State"><span class="state-pill state-{{ row.state|replace('_', '-') }}"><span class="state-dot"></span>{{ row.state|replace('_', ' ') }}</span></td>
-            <td data-label="Scheduled (IST)"><time class="ist-time" data-utc="{{ row.scheduled_time }}">{{ row.scheduled_time }}</time></td>
-            <td data-label="Latest API entry">{% if entry %}<strong>{{ entry.status or "Unknown" }}</strong><span class="cell-sub">Code {{ entry.code if entry.code is defined else "—" }}</span>{% else %}<span class="muted" title="No API entry matched this site's scheduled run">No entry for this run</span>{% endif %}</td>
+            <td data-label="Indexing schedule"><strong>{{ row.cron_description }}</strong><span class="cell-sub">Cron: <code>{{ row.cron }}</code></span></td>
+            <td data-label="State"><span class="state-pill state-{{ row.state|replace('_', '-') }}"><span class="state-dot"></span>{{ "not checked yet" if row.state == "no_data" else row.state|replace('_', ' ') }}</span></td>
+            <td data-label="Scheduled (IST)">{% if row.scheduled_time %}<time class="ist-time" data-utc="{{ row.scheduled_time }}">{{ row.scheduled_time }}</time>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td data-label="Latest API entry">{% if entry %}<strong>{{ entry.status or "Unknown" }}</strong><span class="cell-sub">Code {{ entry.code if entry.code is defined else "—" }}</span>{% elif row.state == "no_data" %}<span class="muted">No check recorded yet</span>{% else %}<span class="muted" title="No API entry matched this site's scheduled run">No entry for this run</span>{% endif %}</td>
             <td data-label="Alert"><span class="alert-indicator {{ 'alert-sent' if row.alert_sent else 'alert-none' }}">{{ "Sent" if row.alert_sent else "—" }}</span></td>
             <td data-label="Status API">{% if row.status_url %}<a class="icon-link" href="{{ row.status_url }}" target="_blank" rel="noopener">Open API <span aria-hidden="true">↗</span></a>{% endif %}</td>
           </tr>
@@ -50,7 +51,7 @@
     {% endif %}
     <div class="card-footer"><span>Auto-refreshes every 60 seconds</span><span>{{ rows|length }} site{{ "s" if rows|length != 1 else "" }}</span></div>
   </section>
-  <p class="page-footnote">Scheduled is the planned indexing time from the site's cron in the CSV. Checked is when Viper last queried the API. All times are shown in IST. “No entry for this run” means the API response had no entry matching that scheduled run; use “Open API” or Live feed status to inspect the latest API response.</p>
+  <p class="page-footnote">The readable indexing schedule comes from each site's CSV cron; cron schedules are interpreted in UTC. Scheduled is the planned run time and Checked is when Viper last queried the API; both are shown in IST. “No entry for this run” means the API response had no entry matching that scheduled run; use “Open API” or Live feed status to inspect the latest API response.</p>
 </main>
 <script>
   (() => {

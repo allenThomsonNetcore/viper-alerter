@@ -1,5 +1,5 @@
 """CSV validation tests."""
-from checker.csv_loader import parse_sites
+from checker.csv_loader import describe_cron, parse_sites
 
 
 def test_csv_validation_and_default_duration():
@@ -17,3 +17,9 @@ def test_csv_rejects_unknown_app_or_version():
     sites, errors = parse_sites(data, {"apac": "host"})
     assert not sites
     assert len(errors) == 2
+
+
+def test_cron_descriptions_are_readable_and_keep_nonuniform_minute_intervals_accurate():
+    assert describe_cron("0 */3 * * *") == "Every 3 hours at minute 00 UTC"
+    assert describe_cron("*/40 * * * *") == "At :00 and :40 every hour (the gaps alternate 40 and 20 minutes)"
+    assert describe_cron("15 8 * * *") == "Daily at 08:15 UTC"

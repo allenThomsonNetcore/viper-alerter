@@ -17,4 +17,11 @@ def test_alert_timestamps_are_explicitly_ist():
     assert "Scheduled time (IST): 19 Nov 2026, 08:00:00 PM IST" in body
     assert "Checked at (IST): 19 Nov 2026, 08:30:00 PM IST" in body
     assert "API timestamp (IST):" in body
+
+
+def test_missing_alert_mentions_likely_feed_pull_pipeline_failure():
+    site = Site("demo", "sg", "0 */3 * * *", 120)
+    _, body = alert_text(site, {"state": "missing", "scheduled_time": datetime(2026, 11, 19, 14, 30, tzinfo=timezone.utc),
+                                "overdue_minutes": 30, "latest_entry": None}, "feed-apac.unbxd.io")
+    assert "Expected cause: Likely feed pull pipeline failure (verify pipeline logs)" in body
     assert "2026-11-19 20:00:00" not in body

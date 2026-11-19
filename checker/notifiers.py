@@ -14,6 +14,13 @@ from checker.config import Config
 IST = ZoneInfo("Asia/Kolkata")
 
 
+def expected_cause(state: str) -> str:
+    """Return the operational expectation associated with a missing status."""
+    if state == "missing":
+        return "Likely feed pull pipeline failure (verify pipeline logs)"
+    return "—"
+
+
 def format_ist(value: datetime) -> str:
     """Format a timezone-aware datetime for alert emails in Indian time."""
     return value.astimezone(IST).strftime("%d %b %Y, %I:%M:%S %p IST")
@@ -63,12 +70,14 @@ def alert_text(site: Any, result: dict[str, Any], host: str,
     entry = result.get("latest_entry") or {}
     entry_timestamp_text = format_epoch_ms_ist(entry.get("timeStamp"))
     checked_text = format_ist(checked_at) if checked_at else "not provided"
+    expected = expected_cause(state)
     suggestions = {"missing": "Check the feed pull pipeline; the status endpoint cannot show the root cause.",
                    "stuck": "Check the indexing job and its worker logs.", "failed": "Inspect the failure message and indexing logs.",
                    "rejected": "Check feed validation and rejection details.", "unknown": "Review the raw status and code with the platform team."}
     subject = f"Indexing alert: {state} - {site.site_key} [{site.region}]"
     body = (f"Region: {site.region}\nSite: {site.site_key}\nVersion: {site.version}\nApp: {site.app}\n"
             f"Scheduled time (IST): {scheduled}\nChecked at (IST): {checked_text}\nState: {state}\n"
+            f"Expected cause: {expected}\n"
             f"How long overdue: {result['overdue_minutes']} minutes\nLatest history entry: status={entry.get('status', 'none')}, "
             f"code={entry.get('code', 'none')}, API timestamp (IST): {entry_timestamp_text}, "
             f"message={entry.get('message', 'none')}\n"

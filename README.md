@@ -4,6 +4,8 @@ Viper checks scheduled catalog-indexing runs, sends state-change and recovery al
 
 The CSV header is `site_key,region,cron,max_duration_minutes,version,app`. `version` must be `v1` or `v2`; `app` must be `shopify` or `bigcommerce`. The dashboard and alert email include both values.
 
+The home page also shows each configured site's cron expression with a plain-language description. Cron schedules are evaluated in UTC; run and check timestamps in the dashboard are displayed in IST.
+
 ## How the service runs
 
 - Render runs the web application and dashboard.
@@ -36,6 +38,7 @@ Create an EmailJS service and email template. Paste [`emailjs/template.html`](em
 | `version` | Integration version (`v1` or `v2`) |
 | `app` | Commerce app (`shopify` or `bigcommerce`) |
 | `state` | Alert state, when present |
+| `expected_cause` | Likely feed pull pipeline failure for a `missing` status; verify using pipeline logs |
 | `scheduled_time` | Scheduled time in IST, when present |
 | `checked_at` | Time Viper checked the API, in IST |
 | `api_timestamp` | Latest API entry timestamp converted from its epoch value to IST, when present |
