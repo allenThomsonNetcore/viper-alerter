@@ -1,30 +1,26 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ site_key }} · Viper status</title>
-  <style>
-    :root { font: 15px/1.5 system-ui, sans-serif; color: #182230; background: #f4f6f8; }
-    body { margin: 0; } header { background: #13243a; color: white; padding: 22px max(20px, calc((100vw - 1100px)/2)); }
-    main { max-width: 1100px; margin: 24px auto; padding: 0 20px; } .sub { color: #d4deea; }
-    .card { background: white; border: 1px solid #e0e5eb; border-radius: 10px; overflow: auto; }
-    table { width: 100%; border-collapse: collapse; min-width: 850px; } th,td { padding: 12px 14px; border-bottom: 1px solid #edf0f3; text-align: left; vertical-align: top; }
-    th { background: #f8fafb; color: #566273; text-transform: uppercase; font-size: 12px; } a { color: #145bb8; }
-    .badge { border-radius: 20px; padding: 2px 9px; background: #e9eef5; font-size: 12px; font-weight: 650; }
-    .ok { background: #dcf5e7; color: #126533; } .pending { background: #fff2cb; color: #805700; } .failed,.missing,.stuck,.rejected,.unknown,.checker_error { background: #fde3e1; color: #a12620; }
-    code { white-space: pre-wrap; word-break: break-word; }
-  </style>
-</head>
-<body>
-  <header><h1>{{ site_key }}</h1><div class="sub">Region: {{ region }} · {{ rows[0].version }} · {{ rows[0].app }}</div></header>
-  <main><p><a href="/">← All sites</a></p>
-    <div class="card"><table><thead><tr><th>Run state</th><th>Scheduled (UTC)</th><th>Checked (UTC)</th><th>Latest API status</th><th>Alert sent</th><th>Message</th><th>API</th></tr></thead>
-    <tbody>{% for row in rows %}{% set entry = row.latest_entry or {} %}<tr>
-      <td><span class="badge {{ row.state }}">{{ row.state }}</span></td><td>{{ row.scheduled_time }}</td><td>{{ row.checked_at }}</td>
-      <td>{{ entry.status or "—" }}{% if entry.code is defined %} ({{ entry.code }}){% endif %}</td>
-      <td>{{ "Yes" if row.alert_sent else "No" }}</td><td><code>{{ entry.message or row.error_message or "—" }}</code></td>
-      <td>{% if row.status_url %}<a href="{{ row.status_url }}" target="_blank" rel="noopener">Open ↗</a>{% else %}—{% endif %}</td>
-    </tr>{% endfor %}</tbody></table></div>
-  </main>
-</body>
-</html>
+{% extends "base.html" %}
+{% block title %}{{ site_key }} · Viper{% endblock %}
+{% block content %}
+<main class="page-shell">
+  <nav class="breadcrumbs"><a href="/">← All sites</a><span>/</span><span>{{ site_key }}</span></nav>
+  <section class="page-heading detail-heading">
+    <div><p class="eyebrow">SITE RUN HISTORY</p><h1 class="break-word">{{ site_key }}</h1><p class="lede">{{ region }} <span class="tag">{{ rows[0].version }}</span> <span class="tag tag-soft">{{ rows[0].app }}</span></p></div>
+    {% if rows[0].status_url %}<a class="button button-primary" href="{{ rows[0].status_url }}" target="_blank" rel="noopener">Open live status API ↗</a>{% endif %}
+  </section>
+  <section class="content-card">
+    <div class="card-heading"><div><h2>Recent scheduled runs</h2><p>Latest status observations for this site.</p></div></div>
+    <div class="table-wrap">
+      <table><thead><tr><th>State</th><th>Scheduled (UTC)</th><th>Checked (UTC)</th><th>API entry</th><th>Alert sent</th><th>Message</th></tr></thead>
+      <tbody>{% for row in rows %}{% set entry = row.latest_entry or {} %}
+        <tr>
+          <td data-label="State"><span class="state-pill state-{{ row.state|replace('_', '-') }}"><span class="state-dot"></span>{{ row.state|replace('_', ' ') }}</span></td>
+          <td data-label="Scheduled (UTC)">{{ row.scheduled_time }}</td><td data-label="Checked (UTC)">{{ row.checked_at }}</td>
+          <td data-label="API entry">{{ entry.status or "—" }}{% if entry.code is defined %} · {{ entry.code }}{% endif %}</td>
+          <td data-label="Alert"><span class="alert-indicator {{ 'alert-sent' if row.alert_sent else 'alert-none' }}">{{ "Sent" if row.alert_sent else "—" }}</span></td>
+          <td data-label="Message" class="message-cell">{{ entry.message or row.error_message or "—" }}</td>
+        </tr>
+      {% endfor %}</tbody></table>
+    </div>
+  </section>
+</main>
+{% endblock %}

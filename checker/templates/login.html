@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Sign in · Viper{% endblock %}
+{% block content %}
+<main class="login-page">
+  <section class="login-card">
+    <div class="login-mark">V</div>
+    <p class="eyebrow">VIPER OPERATIONS</p>
+    <h1>Sign in to your dashboard</h1>
+    <p class="login-copy">View catalog indexing health and recent alert activity.</p>
+    {% if error %}<div class="form-error" role="alert">{{ error }}</div>{% endif %}
+    <form method="post" action="{{ url_for('login', next=next_path) }}" class="login-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="next" value="{{ next_path }}">
+      <label for="username">Username</label>
+      <input id="username" name="username" type="text" autocomplete="username" required autofocus>
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <button class="button button-primary login-submit" type="submit">Sign in <span aria-hidden="true">→</span></button>
+    </form>
+    <p class="login-secure"><span aria-hidden="true">▣</span> Your session is private to this browser.</p>
+  </section>
+  <p class="login-footer">Catalog indexing monitor · Viper</p>
+</main>
+{% endblock %}

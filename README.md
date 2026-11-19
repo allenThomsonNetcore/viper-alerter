@@ -15,6 +15,8 @@ The CSV header is `site_key,region,cron,max_duration_minutes,version,app`. `vers
 
 Create a Supabase project, open its SQL Editor, and run [`supabase/schema.sql`](supabase/schema.sql). Copy the Project URL and server-side `service_role` key into Render environment variables. Keep the service-role key private; the dashboard accesses the database only through the Flask backend. The schema enables RLS without granting browser roles direct access.
 
+If a logged-in dashboard gets a Supabase 403, verify `SUPABASE_URL` and the key are from the same project, then rerun the schema so its `service_role` grants are applied. New `sb_secret_...` keys are sent only in the `apikey` header; legacy service-role JWTs are also sent as a Bearer token.
+
 Supabase Free is useful for a prototype, but projects can be paused after a week of low activity, storage is limited, and automatic backups are not included. This service writes data during every checker run, but export important data periodically. See [Supabase Free plan limits](https://supabase.com/pricing), [project pausing](https://supabase.com/docs/guides/platform/free-project-pausing), and [database backups](https://supabase.com/docs/guides/platform/backups).
 
 ## EmailJS setup
@@ -48,7 +50,7 @@ Set `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`, `EMAILJS_PUBLIC_KEY`, `EMAILJS_
    gunicorn --bind 0.0.0.0:$PORT --workers 1 checker.web:app
    ```
 
-3. Add the Supabase, EmailJS, dashboard, and trigger secrets from [`.env.example`](.env.example) in Render's environment settings. `render.yaml` marks secret values as dashboard-managed rather than committing them.
+3. Add the Supabase, EmailJS, dashboard, and trigger secrets from [`.env.example`](.env.example) in Render's environment settings. Configure `FLASK_SECRET_KEY` as a long random secret. `render.yaml` generates it automatically for Blueprint deploys and enables secure session cookies.
 4. Configure cron-job.org with a job scheduled as `*/30 * * * *` (UTC):
    - Method: `POST`
    - URL: `https://<render-service>.onrender.com/internal/run-checks`
@@ -80,9 +82,10 @@ curl -X POST http://127.0.0.1:10000/internal/run-checks \
 
 ## Data and API
 
-- `GET /` — dashboard (HTTP Basic authentication)
-- `GET /site/<site_key>?region=<region>` — run history (HTTP Basic authentication)
-- `GET /api/sites` and `GET /api/sites/<site_key>` — JSON status API (HTTP Basic authentication)
+- `GET /login` — dedicated dashboard sign-in page
+- `GET /` — dashboard (authenticated session)
+- `GET /site/<site_key>?region=<region>` — run history (authenticated session)
+- `GET /api/sites` and `GET /api/sites/<site_key>` — JSON status API (authenticated session)
 - `POST /internal/run-checks` — protected external scheduler trigger
 - `GET /healthz` — health ping; no checker work is run
 

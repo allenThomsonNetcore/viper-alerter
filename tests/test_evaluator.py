@@ -1,5 +1,5 @@
 """Evaluator behavior tests."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -32,7 +32,7 @@ def test_ok(sample):
 @pytest.mark.parametrize("minute", [30, 60, 90])
 def test_pending_during_grace(minute):
     """No history remains pending before deadline."""
-    assert ev([], T.replace(minute=minute), datetime(2026, 10, 23, 9, 0, tzinfo=UTC))["state"] == "pending"
+    assert ev([], T + timedelta(minutes=minute), datetime(2026, 10, 23, 9, 0, tzinfo=UTC))["state"] == "pending"
 
 
 @pytest.mark.parametrize("status,expected", [("FAILED", "failed"), ("REJECTED", "rejected"), ("INDEXING", "pending"), ("WAT", "unknown")])

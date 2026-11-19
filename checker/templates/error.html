@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Service status · Viper{% endblock %}
+{% block content %}
+<main class="error-page">
+  <section class="error-card">
+    <span class="error-code">{{ status_code }}</span>
+    <p class="eyebrow">{% if status_code == 503 %}DATA CONNECTION{% else %}PAGE NOT FOUND{% endif %}</p>
+    <h1>{% if status_code == 404 %}That page isn’t here{% else %}Dashboard data is unavailable{% endif %}</h1>
+    <p class="lede">{{ message }}</p>
+    {% if status_code == 503 %}
+      <div class="help-box"><strong>Check these settings</strong><ul>
+        <li>Confirm <code>SUPABASE_URL</code> points to the project where you ran the schema.</li>
+        <li>Set <code>SUPABASE_SERVICE_ROLE_KEY</code> to a server-side service-role or secret key.</li>
+        <li>Run the latest <code>supabase/schema.sql</code> and grants in the Supabase SQL Editor.</li>
+      </ul></div>
+      <a class="button button-primary" href="/">Try again</a>
+    {% else %}<a class="button button-primary" href="/">Back to dashboard</a>{% endif %}
+  </section>
+</main>
+{% endblock %}

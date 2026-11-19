@@ -44,3 +44,8 @@ create index if not exists alert_deliveries_sent_at_idx
 -- server-side and bypasses RLS; anonymous/authenticated clients get no policies.
 alter table public.site_runs enable row level security;
 alter table public.alert_deliveries enable row level security;
+
+-- Table grants are required by PostgREST even when the key bypasses RLS.
+grant usage on schema public to service_role;
+grant select, insert, update, delete on public.site_runs to service_role;
+grant select, insert, update, delete on public.alert_deliveries to service_role;

@@ -51,6 +51,8 @@ class Config:
     run_trigger_token: str = ""
     dashboard_user: str = ""
     dashboard_password: str = ""
+    flask_secret_key: str = ""
+    cookie_secure: bool = False
     site_csv_path: str = "sites.example.csv"
     yaml_path: str = ""
 
@@ -96,5 +98,7 @@ def load_config() -> Config:
     cfg.run_trigger_token = os.getenv("RUN_TRIGGER_TOKEN", "")
     cfg.dashboard_user = os.getenv("DASHBOARD_USER", "")
     cfg.dashboard_password = os.getenv("DASHBOARD_PASSWORD", "")
+    cfg.flask_secret_key = os.getenv("FLASK_SECRET_KEY", "")
+    cfg.cookie_secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
     cfg.site_csv_path = os.getenv("SITE_CSV_PATH", cfg.csv_source if cfg.csv_type == "local" else "sites.example.csv")
     return cfg

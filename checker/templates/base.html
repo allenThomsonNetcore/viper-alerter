@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101a2c">
+  <title>{% block title %}Viper · Indexing Monitor{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='viper.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Viper dashboard home">
+      <span class="brand-mark">V</span><span>Viper<span class="brand-muted"> / Indexing monitor</span></span>
+    </a>
+    {% if session.get('viper_authenticated') %}
+    <form action="{{ url_for('logout') }}" method="post" class="logout-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="button button-quiet" type="submit">Sign out</button>
+    </form>
+    {% endif %}
+  </header>
+  {% block content %}{% endblock %}
+</body>
+</html>

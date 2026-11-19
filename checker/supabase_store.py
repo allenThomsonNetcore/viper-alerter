@@ -6,6 +6,26 @@ from typing import Any
 import requests
 
 
+class SupabaseAPIError(RuntimeError):
+    """Sanitized, actionable Supabase API failure."""
+
+    def __init__(self, status_code: int, message: str = "") -> None:
+        """Create an error without retaining or exposing request credentials."""
+        self.status_code = status_code
+        if status_code == 401:
+            self.user_message = "Supabase rejected the API key. Check the key configured in Render."
+        elif status_code == 403:
+            self.user_message = (
+                "Supabase denied access to the status tables. Confirm the schema was run in this project "
+                "and that the service_role has table grants."
+            )
+        elif status_code == 404:
+            self.user_message = "The Viper tables were not found. Run supabase/schema.sql in this Supabase project."
+        else:
+            self.user_message = f"Supabase returned HTTP {status_code}. Check the service logs and Supabase API status."
+        super().__init__(self.user_message)
+
+
 class SupabaseStore:
     """Small PostgREST client using the server-side service role key."""
 
@@ -15,17 +35,18 @@ class SupabaseStore:
             raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required")
         self.base_url = f"{url.rstrip('/')}/rest/v1"
         self.timeout = timeout
-        self.headers = {
-            "apikey": service_role_key,
-            "Authorization": f"Bearer {service_role_key}",
-            "Content-Type": "application/json",
-        }
+        self.headers = {"apikey": service_role_key, "Content-Type": "application/json"}
+        # Legacy service_role keys are JWTs. New sb_secret keys are opaque API
+        # keys and must not be presented as Bearer JWTs.
+        if service_role_key.startswith("eyJ"):
+            self.headers["Authorization"] = f"Bearer {service_role_key}"
 
     def _request(self, method: str, table: str, **kwargs: Any) -> Any:
         """Send one PostgREST request and return decoded JSON when present."""
         response = requests.request(method, f"{self.base_url}/{table}", headers=self.headers,
                                     timeout=self.timeout, **kwargs)
-        response.raise_for_status()
+        if not response.ok:
+            raise SupabaseAPIError(response.status_code)
         if response.content:
             return response.json()
         return None
@@ -33,8 +54,8 @@ class SupabaseStore:
     def upsert_run(self, record: dict[str, Any]) -> None:
         """Insert or update the latest result for a scheduled site run."""
         headers = {**self.headers, "Prefer": "resolution=merge-duplicates,return=minimal"}
-        requests.post(f"{self.base_url}/site_runs", params={"on_conflict": "region,site_key,scheduled_time"},
-                      json=record, headers=headers, timeout=self.timeout).raise_for_status()
+        self._check(requests.post(f"{self.base_url}/site_runs", params={"on_conflict": "region,site_key,scheduled_time"},
+                                  json=record, headers=headers, timeout=self.timeout))
 
     def get_delivery(self, dedupe_key: str) -> dict[str, Any] | None:
         """Return a previously recorded delivery for a deduplication key."""
@@ -52,8 +73,8 @@ class SupabaseStore:
     def insert_delivery(self, record: dict[str, Any]) -> None:
         """Record a notification after the provider confirms it was sent."""
         headers = {**self.headers, "Prefer": "return=minimal"}
-        requests.post(f"{self.base_url}/alert_deliveries", json=record, headers=headers,
-                      timeout=self.timeout).raise_for_status()
+        self._check(requests.post(f"{self.base_url}/alert_deliveries", json=record, headers=headers,
+                                  timeout=self.timeout))
 
     def deliveries_for_run(self, region: str, site_key: str, scheduled_time: str) -> list[dict[str, Any]]:
         """Read alert history for one scheduled site run."""
@@ -77,7 +98,13 @@ class SupabaseStore:
 
     def prune(self, cutoff_iso: str) -> None:
         """Delete status and alert records older than the retention cutoff."""
-        requests.delete(f"{self.base_url}/site_runs", params={"checked_at": f"lt.{cutoff_iso}"},
-                        headers=self.headers, timeout=self.timeout).raise_for_status()
-        requests.delete(f"{self.base_url}/alert_deliveries", params={"sent_at": f"lt.{cutoff_iso}"},
-                        headers=self.headers, timeout=self.timeout).raise_for_status()
+        self._check(requests.delete(f"{self.base_url}/site_runs", params={"checked_at": f"lt.{cutoff_iso}"},
+                                    headers=self.headers, timeout=self.timeout))
+        self._check(requests.delete(f"{self.base_url}/alert_deliveries", params={"sent_at": f"lt.{cutoff_iso}"},
+                                    headers=self.headers, timeout=self.timeout))
+
+    @staticmethod
+    def _check(response: requests.Response) -> None:
+        """Raise a sanitized error for an unsuccessful PostgREST response."""
+        if not response.ok:
+            raise SupabaseAPIError(response.status_code)

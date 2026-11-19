@@ -11,13 +11,53 @@ def test_health_endpoint_is_public(monkeypatch):
     assert response.json == {"status": "ok"}
 
 
-def test_dashboard_requires_basic_auth(monkeypatch):
-    """Dashboard requests require configured credentials."""
+def test_dashboard_redirects_to_dedicated_login(monkeypatch):
+    """Unauthenticated dashboard requests go to the dedicated login page."""
     from checker import web
-    monkeypatch.setattr(web, "load_config", lambda: Config(dashboard_user="operator", dashboard_password="secret"))
+    monkeypatch.setattr(web, "load_config", lambda: Config(dashboard_user="operator", dashboard_password="secret", flask_secret_key="test-key"))
+    web.app.secret_key = "test-key"
     response = web.app.test_client().get("/")
-    assert response.status_code == 401
-    assert "WWW-Authenticate" in response.headers
+    assert response.status_code == 302
+    assert response.headers["Location"].startswith("/login")
+
+
+def test_login_creates_dashboard_session(monkeypatch):
+    """Valid dashboard credentials establish a session without HTTP Basic Auth."""
+    from checker import web
+    monkeypatch.setattr(web, "load_config", lambda: Config(dashboard_user="operator", dashboard_password="secret", flask_secret_key="test-key"))
+    web.app.secret_key = "test-key"
+    client = web.app.test_client()
+    client.get("/login")
+    with client.session_transaction() as state:
+        csrf_token = state["csrf_token"]
+    response = client.post("/login", data={"username": "operator", "password": "secret", "csrf_token": csrf_token, "next": "/"})
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/")
+
+
+def test_dashboard_renders_mobile_table(monkeypatch):
+    """Authenticated dashboard returns the responsive site table."""
+    from checker import web
+
+    class Store:
+        def latest_runs(self):
+            return [{"region": "sg", "site_key": "test-site", "version": "v2", "app": "shopify",
+                     "state": "ok", "scheduled_time": "2026-11-19T09:00:00+00:00",
+                     "checked_at": "2026-11-19T09:30:00+00:00", "latest_entry": {"status": "INDEXED", "code": 200},
+                     "alert_sent": False, "status_url": "https://feed-apac.unbxd.io/api/test-site/catalog/status"}]
+
+    monkeypatch.setattr(web, "load_config", lambda: Config(dashboard_user="operator", dashboard_password="secret", flask_secret_key="test-key"))
+    monkeypatch.setattr(web, "_store", Store)
+    web.app.secret_key = "test-key"
+    client = web.app.test_client()
+    with client.session_transaction() as state:
+        state["viper_authenticated"] = True
+        state["csrf_token"] = "csrf"
+    response = client.get("/")
+    assert response.status_code == 200
+    assert b"test-site" in response.data
+    assert b"Version / App" in response.data
+    assert b"viper.css" in response.data
 
 
 def test_run_endpoint_rejects_bad_token(monkeypatch):

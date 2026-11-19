@@ -1,46 +1,73 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="60">
-  <title>Viper Indexing Status</title>
-  <style>
-    :root { color-scheme: light; font: 15px/1.5 system-ui, sans-serif; color: #182230; background: #f4f6f8; }
-    body { margin: 0; } header { background: #13243a; color: white; padding: 22px max(20px, calc((100vw - 1180px)/2)); }
-    h1 { margin: 0; font-size: 22px; } main { max-width: 1180px; margin: 26px auto; padding: 0 20px; }
-    .sub { color: #d4deea; margin-top: 4px; } .panel { background: white; border: 1px solid #e0e5eb; border-radius: 10px; overflow: auto; }
-    table { width: 100%; border-collapse: collapse; min-width: 920px; } th, td { padding: 13px 15px; border-bottom: 1px solid #edf0f3; text-align: left; vertical-align: top; }
-    th { background: #f8fafb; color: #566273; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
-    tr:last-child td { border-bottom: 0; } a { color: #145bb8; } .badge { display: inline-block; border-radius: 20px; padding: 2px 9px; font-size: 12px; font-weight: 650; background: #e9eef5; }
-    .ok { background: #dcf5e7; color: #126533; } .pending { background: #fff2cb; color: #805700; } .failed,.missing,.stuck,.rejected,.unknown,.checker_error { background: #fde3e1; color: #a12620; }
-    .yes { color: #126533; font-weight: 600; } .no { color: #697586; } .empty { padding: 32px; color: #667085; text-align: center; }
-    .muted { color: #697586; font-size: 13px; } code { white-space: pre-wrap; word-break: break-word; }
-  </style>
-</head>
-<body>
-  <header><h1>Catalog indexing status</h1><div class="sub">Latest recorded run for each configured site · refreshes every minute</div></header>
-  <main>
-    <div class="panel">
-      {% if rows %}
-      <table>
-        <thead><tr><th>Site key</th><th>Region</th><th>Version</th><th>App</th><th>Latest state</th><th>Scheduled (UTC)</th><th>Checked (UTC)</th><th>API status</th><th>Alert sent</th><th>Status API</th></tr></thead>
+{% extends "base.html" %}
+{% block title %}Overview · Viper{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="60">{% endblock %}
+{% block content %}
+<main class="page-shell">
+  <section class="page-heading">
+    <div>
+      <p class="eyebrow">OPERATIONS OVERVIEW</p>
+      <h1>Catalog indexing</h1>
+      <p class="lede">Current run status across the sites in your CSV configuration.</p>
+    </div>
+    <div class="updated-card"><span class="pulse"></span><div><span class="small-label">Latest check</span><strong>{{ last_checked or "No checks yet" }}</strong><span class="small-label">Times shown in UTC</span></div></div>
+  </section>
+
+  <section class="stat-grid" aria-label="Site status counts">
+    <article class="stat-card"><span class="stat-label">Sites</span><strong>{{ rows|length }}</strong><span class="stat-foot">Configured sites</span></article>
+    <article class="stat-card stat-good"><span class="stat-label">Healthy</span><strong>{{ counts.get('ok', 0) }}</strong><span class="stat-foot">Latest result is ok</span></article>
+    <article class="stat-card stat-wait"><span class="stat-label">Waiting</span><strong>{{ counts.get('pending', 0) }}</strong><span class="stat-foot">Within the grace window</span></article>
+    <article class="stat-card stat-alert"><span class="stat-label">Needs attention</span><strong>{{ counts.get('failed', 0) + counts.get('rejected', 0) + counts.get('stuck', 0) + counts.get('missing', 0) + counts.get('unknown', 0) + counts.get('checker_error', 0) }}</strong><span class="stat-foot">Failure, missing, or checker error</span></article>
+  </section>
+
+  <section class="content-card">
+    <div class="card-heading">
+      <div><h2>Sites</h2><p>Latest recorded result per site and region.</p></div>
+      <label class="search-box"><span class="sr-only">Filter sites</span><span aria-hidden="true">⌕</span><input id="site-filter" type="search" placeholder="Filter sites…" autocomplete="off"></label>
+    </div>
+    {% if rows %}
+    <div class="table-wrap">
+      <table id="site-table">
+        <thead><tr><th>Site</th><th>Region</th><th>Version / App</th><th>State</th><th>Scheduled (UTC)</th><th>Latest API entry</th><th>Alert</th><th></th></tr></thead>
         <tbody>
         {% for row in rows %}{% set entry = row.latest_entry or {} %}
-          <tr>
-            <td><a href="/site/{{ row.site_key|urlencode }}?region={{ row.region|urlencode }}">{{ row.site_key }}</a></td>
-            <td>{{ row.region }}</td><td>{{ row.version }}</td><td>{{ row.app }}</td><td><span class="badge {{ row.state }}">{{ row.state }}</span></td>
-            <td>{{ row.scheduled_time }}</td><td>{{ row.checked_at }}</td>
-            <td>{{ entry.status or "—" }}{% if entry.code is defined %} ({{ entry.code }}){% endif %}</td>
-            <td class="{{ 'yes' if row.alert_sent else 'no' }}">{{ "Yes" if row.alert_sent else "No" }}</td>
-            <td>{% if row.status_url %}<a href="{{ row.status_url }}" target="_blank" rel="noopener">Open API ↗</a>{% else %}—{% endif %}</td>
+          <tr class="site-row" data-search="{{ (row.site_key ~ ' ' ~ row.region ~ ' ' ~ row.version ~ ' ' ~ row.app ~ ' ' ~ row.state)|lower }}">
+            <td data-label="Site"><a class="site-link" href="/site/{{ row.site_key|urlencode }}?region={{ row.region|urlencode }}">{{ row.site_key }}</a><span class="cell-sub">Checked {{ row.checked_at }}</span></td>
+            <td data-label="Region">{{ row.region }}</td>
+            <td data-label="Version / App"><span class="tag">{{ row.version }}</span><span class="tag tag-soft">{{ row.app }}</span></td>
+            <td data-label="State"><span class="state-pill state-{{ row.state|replace('_', '-') }}"><span class="state-dot"></span>{{ row.state|replace('_', ' ') }}</span></td>
+            <td data-label="Scheduled (UTC)">{{ row.scheduled_time }}</td>
+            <td data-label="Latest API entry">{% if entry %}<strong>{{ entry.status or "Unknown" }}</strong><span class="cell-sub">Code {{ entry.code if entry.code is defined else "—" }}</span>{% else %}<span class="muted">No entry</span>{% endif %}</td>
+            <td data-label="Alert"><span class="alert-indicator {{ 'alert-sent' if row.alert_sent else 'alert-none' }}">{{ "Sent" if row.alert_sent else "—" }}</span></td>
+            <td data-label="Status API">{% if row.status_url %}<a class="icon-link" href="{{ row.status_url }}" target="_blank" rel="noopener">Open API <span aria-hidden="true">↗</span></a>{% endif %}</td>
           </tr>
         {% endfor %}
         </tbody>
       </table>
-      {% else %}<div class="empty">No checker results yet. Run the first check to populate this table.</div>{% endif %}
     </div>
-    <p class="muted">Times are stored and displayed in UTC. A first visit after the service has been idle may take about a minute while it starts.</p>
-  </main>
-</body>
-</html>
+    <p id="no-results" class="empty-state" hidden>No sites match that filter.</p>
+    {% else %}
+    <div class="empty-state"><span class="empty-icon">⌁</span><h3>No check results yet</h3><p>Once the scheduled checker runs, site statuses will appear here.</p></div>
+    {% endif %}
+    <div class="card-footer"><span>Auto-refreshes every 60 seconds</span><span>{{ rows|length }} site{{ "s" if rows|length != 1 else "" }}</span></div>
+  </section>
+  <p class="page-footnote">Status details are snapshots from the checker. Use “Open API” to view the live platform endpoint.</p>
+</main>
+<script>
+  (() => {
+    const input = document.getElementById('site-filter');
+    if (!input) return;
+    const rows = [...document.querySelectorAll('.site-row')];
+    const empty = document.getElementById('no-results');
+    input.addEventListener('input', () => {
+      const query = input.value.trim().toLowerCase();
+      let visible = 0;
+      rows.forEach(row => {
+        const show = row.dataset.search.includes(query);
+        row.hidden = !show;
+        if (show) visible += 1;
+      });
+      empty.hidden = visible !== 0;
+    });
+  })();
+</script>
+{% endblock %}
