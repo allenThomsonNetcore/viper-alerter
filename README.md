@@ -18,6 +18,8 @@ The home page also shows each configured site's cron expression with a plain-lan
 
 Create a Supabase project, open its SQL Editor, and run [`supabase/schema.sql`](supabase/schema.sql). Copy the Project URL and server-side `service_role` key into Render environment variables. Keep the service-role key private; the dashboard accesses the database only through the Flask backend. The schema enables RLS without granting browser roles direct access.
 
+The dashboard's **Add site** form stores new site configurations in the `site_configs` table. Re-run the latest schema in the Supabase SQL Editor before deploying this feature. Dashboard-added sites are merged with the CSV site list and checked by the same scheduler.
+
 If a logged-in dashboard gets a Supabase 403, verify `SUPABASE_URL` and the key are from the same project, then rerun the schema so its `service_role` grants are applied. New `sb_secret_...` keys are sent only in the `apikey` header; legacy service-role JWTs are also sent as a Bearer token.
 
 Supabase Free is useful for a prototype, but projects can be paused after a week of low activity, storage is limited, and automatic backups are not included. This service writes data during every checker run, but export important data periodically. See [Supabase Free plan limits](https://supabase.com/pricing), [project pausing](https://supabase.com/docs/guides/platform/free-project-pausing), and [database backups](https://supabase.com/docs/guides/platform/backups).

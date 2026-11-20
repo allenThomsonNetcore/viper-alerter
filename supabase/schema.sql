@@ -35,6 +35,17 @@ create table if not exists public.alert_deliveries (
     sent_at timestamptz not null
 );
 
+create table if not exists public.site_configs (
+    region text not null,
+    site_key text not null,
+    cron text not null,
+    max_duration_minutes integer not null default 120 check (max_duration_minutes > 0),
+    version text not null check (version in ('v1', 'v2')),
+    app text not null check (app in ('shopify', 'bigcommerce')),
+    created_at timestamptz not null default now(),
+    primary key (region, site_key)
+);
+
 create index if not exists alert_deliveries_run_idx
     on public.alert_deliveries (region, site_key, scheduled_time);
 create index if not exists alert_deliveries_sent_at_idx
@@ -44,8 +55,10 @@ create index if not exists alert_deliveries_sent_at_idx
 -- server-side and bypasses RLS; anonymous/authenticated clients get no policies.
 alter table public.site_runs enable row level security;
 alter table public.alert_deliveries enable row level security;
+alter table public.site_configs enable row level security;
 
 -- Table grants are required by PostgREST even when the key bypasses RLS.
 grant usage on schema public to service_role;
 grant select, insert, update, delete on public.site_runs to service_role;
 grant select, insert, update, delete on public.alert_deliveries to service_role;
+grant select, insert, update, delete on public.site_configs to service_role;

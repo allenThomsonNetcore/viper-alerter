@@ -10,7 +10,7 @@ from datetime import timedelta
 from typing import Any
 
 from checker.config import Config
-from checker.csv_loader import LocalLoader, ObjectStorageLoader, GoogleSheetLoader, parse_sites
+from checker.csv_loader import LocalLoader, ObjectStorageLoader, GoogleSheetLoader, merge_site_configs, parse_sites
 from checker.emailjs_notifier import EmailJSNotifier
 from checker.evaluator import evaluate, schedule_times
 from checker.notifiers import (SlackWebhookNotifier, alert_text, expected_cause,
@@ -110,8 +110,15 @@ def run_checks(cfg: Config, *, now: datetime | None = None) -> dict[str, Any]:
     store.prune((checked_at - timedelta(days=7)).isoformat())
     notifiers = _notifiers(cfg)
     csv_path = cfg.site_csv_path
-    content = _loader(cfg).load(csv_path)
-    sites, config_errors = parse_sites(content, cfg.region_hosts)
+    try:
+        content = _loader(cfg).load(csv_path)
+    except Exception:
+        LOGGER.exception("could not load configured site source")
+        sites, config_errors = [], ["could not load configured site source"]
+    else:
+        sites, config_errors = parse_sites(content, cfg.region_hosts)
+    sites, managed_errors = merge_site_configs(sites, store.site_configs(), cfg.region_hosts)
+    config_errors.extend(managed_errors)
     counts: dict[str, Any] = {"sites": len(sites), "ok": 0, "pending": 0,
                               "alerted": 0, "checker_errors": 0,
                               "config_errors": len(config_errors), "delivery_errors": 0}

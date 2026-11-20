@@ -2,18 +2,21 @@
 from __future__ import annotations
 
 import hmac
+import io
 import logging
 import secrets
+import csv
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Any
 from urllib.parse import urlsplit
 
-from flask import Flask, abort, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, abort, flash, jsonify, redirect, render_template, request, session, url_for
 
 from checker.config import load_config
-from checker.csv_loader import GoogleSheetLoader, LocalLoader, ObjectStorageLoader, Site, describe_cron, parse_sites
+from checker.csv_loader import (GoogleSheetLoader, LocalLoader, ObjectStorageLoader, Site,
+                                describe_cron, merge_site_configs, parse_sites)
 from checker.service import run_checks
 from checker.status_client import StatusClient
 from checker.supabase_store import SupabaseAPIError, SupabaseStore
@@ -89,7 +92,7 @@ def _latest_by_site(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(latest.values(), key=lambda row: (row.get("region", ""), row.get("site_key", "")))
 
 
-def _configured_sites(cfg) -> list[Site]:
+def _configured_sites(cfg, store: SupabaseStore | None = None) -> list[Site]:
     """Load and validate the site's CSV configuration."""
     if cfg.csv_type == "sheets":
         loader = GoogleSheetLoader()
@@ -101,16 +104,24 @@ def _configured_sites(cfg) -> list[Site]:
         content = loader.load(cfg.site_csv_path)
     except Exception:
         LOGGER.exception("could not load configured site CSV")
-        return []
-    sites, errors = parse_sites(content, cfg.region_hosts)
+        sites, errors = [], ["could not load configured site source"]
+    else:
+        sites, errors = parse_sites(content, cfg.region_hosts)
     for error in errors:
         LOGGER.warning("live status CSV row skipped: %s", error)
+    if store is not None:
+        try:
+            sites, managed_errors = merge_site_configs(sites, store.site_configs(), cfg.region_hosts)
+            for error in managed_errors:
+                LOGGER.warning("dashboard site configuration skipped: %s", error)
+        except SupabaseAPIError:
+            raise
     return sites
 
 
-def _live_sites(cfg) -> list[dict[str, Any]]:
+def _live_sites(cfg, store: SupabaseStore | None = None) -> list[dict[str, Any]]:
     """Read configured sites and fetch their current status API snapshots."""
-    sites = _configured_sites(cfg)
+    sites = _configured_sites(cfg, store)
 
     client = StatusClient(cfg.request_timeout, retries=1)
     def fetch(site):
@@ -255,10 +266,11 @@ def trigger_checks():
 def dashboard():
     """Render current site status table from Supabase."""
     cfg = load_config()
+    store = _store()
     recorded = {(row.get("region", ""), row.get("site_key", "")): row
-                for row in _latest_by_site(_store().latest_runs())}
+                for row in _latest_by_site(store.latest_runs())}
     rows = []
-    for site in _configured_sites(cfg):
+    for site in _configured_sites(cfg, store):
         key = (site.region, site.site_key)
         row = dict(recorded.get(key, {}))
         row.update({"site_key": site.site_key, "region": site.region, "version": site.version,
@@ -274,13 +286,55 @@ def dashboard():
     for row in rows:
         counts[row.get("state", "unknown")] = counts.get(row.get("state", "unknown"), 0) + 1
     return render_template("index.html", rows=rows, counts=counts,
-                           csrf_token=_csrf_token(), last_checked=max((r.get("checked_at", "") for r in rows), default=""))
+                           csrf_token=_csrf_token(), region_options=sorted(cfg.region_hosts.items()),
+                           last_checked=max((r.get("checked_at", "") for r in rows), default=""))
+
+
+@app.post("/sites")
+def add_site():
+    """Validate and add a site configuration from the dashboard form."""
+    submitted_csrf = request.form.get("csrf_token", "")
+    expected_csrf = session.get("csrf_token", "")
+    if not expected_csrf or not hmac.compare_digest(submitted_csrf, expected_csrf):
+        abort(400, description="The form expired. Refresh the dashboard and try again.")
+
+    fields = ["site_key", "region", "cron", "max_duration_minutes", "version", "app"]
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fields)
+    writer.writeheader()
+    writer.writerow({field: request.form.get(field, "").strip() for field in fields})
+    cfg = load_config()
+    sites, errors = parse_sites(output.getvalue(), cfg.region_hosts)
+    if errors or not sites:
+        flash("Could not add site: " + "; ".join(errors or ["enter valid site details"]), "error")
+        return redirect(url_for("dashboard"))
+
+    site = sites[0]
+    store = _store()
+    if any(item.region == site.region and item.site_key == site.site_key
+           for item in _configured_sites(cfg, store)):
+        flash(f"{site.site_key} is already configured for region {site.region}.", "error")
+        return redirect(url_for("dashboard"))
+    try:
+        store.insert_site_config({
+            "site_key": site.site_key, "region": site.region, "cron": site.cron,
+            "max_duration_minutes": site.max_duration_minutes,
+            "version": site.version, "app": site.app,
+        })
+    except SupabaseAPIError as exc:
+        if exc.status_code == 409:
+            flash(f"{site.site_key} is already configured for region {site.region}.", "error")
+        else:
+            flash(f"Could not save site configuration: {exc.user_message}", "error")
+        return redirect(url_for("dashboard"))
+    flash(f"Added {site.site_key} ({site.region}). It will be checked on the next scheduled run.", "success")
+    return redirect(url_for("dashboard"))
 
 
 @app.get("/live-status")
 def live_status():
     """Fetch and display the latest status API entry for every CSV site."""
-    rows = _live_sites(load_config())
+    rows = _live_sites(load_config(), _store())
     counts: dict[str, int] = {}
     for row in rows:
         counts[row["state"]] = counts.get(row["state"], 0) + 1
@@ -294,8 +348,9 @@ def site_detail(site_key: str):
     """Render recent runs, including a helpful page before the first check."""
     region = request.args.get("region", "")
     cfg = load_config()
-    history = _store().site_history(site_key, region)
-    configured_site = next((site for site in _configured_sites(cfg)
+    store = _store()
+    history = store.site_history(site_key, region)
+    configured_site = next((site for site in _configured_sites(cfg, store)
                             if site.site_key == site_key and (not region or site.region == region)), None)
     if not history:
         if not configured_site:

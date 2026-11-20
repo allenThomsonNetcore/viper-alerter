@@ -106,6 +106,20 @@ def parse_sites(content: str, region_hosts: dict[str, str]) -> tuple[list[Site],
     return sites, errors
 
 
+def merge_site_configs(sites: list[Site], records: list[dict[str, object]],
+                      region_hosts: dict[str, str]) -> tuple[list[Site], list[str]]:
+    """Merge persisted dashboard-managed sites over CSV rows by region and key."""
+    output = io.StringIO()
+    fields = ["site_key", "region", "cron", "max_duration_minutes", "version", "app"]
+    writer = csv.DictWriter(output, fieldnames=fields)
+    writer.writeheader()
+    writer.writerows({field: record.get(field, "") for field in fields} for record in records)
+    managed_sites, errors = parse_sites(output.getvalue(), region_hosts)
+    merged = {(site.region, site.site_key): site for site in sites}
+    merged.update({(site.region, site.site_key): site for site in managed_sites})
+    return sorted(merged.values(), key=lambda site: (site.region, site.site_key)), errors
+
+
 def describe_cron(expression: str) -> str:
     """Describe common five-field cron schedules in plain English (UTC)."""
     fields = expression.split()

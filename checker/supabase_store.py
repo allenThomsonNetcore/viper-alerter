@@ -76,6 +76,17 @@ class SupabaseStore:
         self._check(requests.post(f"{self.base_url}/alert_deliveries", json=record, headers=headers,
                                   timeout=self.timeout))
 
+    def site_configs(self) -> list[dict[str, Any]]:
+        """Read site configurations entered in the dashboard."""
+        return self._request("GET", "site_configs", params={
+            "select": "*", "order": "region.asc,site_key.asc"}) or []
+
+    def insert_site_config(self, record: dict[str, Any]) -> None:
+        """Persist a site configuration entered in the dashboard."""
+        headers = {**self.headers, "Prefer": "return=minimal"}
+        self._check(requests.post(f"{self.base_url}/site_configs", json=record,
+                                  headers=headers, timeout=self.timeout))
+
     def deliveries_for_run(self, region: str, site_key: str, scheduled_time: str) -> list[dict[str, Any]]:
         """Read alert history for one scheduled site run."""
         return self._request("GET", "alert_deliveries", params={

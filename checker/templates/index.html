@@ -7,7 +7,7 @@
     <div>
       <p class="eyebrow">OPERATIONS OVERVIEW</p>
       <h1>Catalog indexing</h1>
-      <p class="lede">Current run status across the sites in your CSV configuration.</p>
+      <p class="lede">Current run status across the sites configured by CSV and the dashboard.</p>
     </div>
     <div class="updated-card"><span class="pulse"></span><div><span class="small-label">Latest check</span>{% if last_checked %}<time class="ist-time updated-time" data-utc="{{ last_checked }}">{{ last_checked }}</time>{% else %}<strong>No checks yet</strong>{% endif %}<span class="small-label">Times shown in IST</span></div></div>
   </section>
@@ -22,7 +22,23 @@
   <section class="content-card">
     <div class="card-heading">
       <div><h2>Sites</h2><p>Latest recorded result per site and region.</p></div>
-      <label class="search-box"><span class="sr-only">Filter sites</span><span aria-hidden="true">⌕</span><input id="site-filter" type="search" placeholder="Filter sites…" autocomplete="off"></label>
+      <div class="site-actions">
+        <label class="search-box"><span class="sr-only">Filter sites</span><span aria-hidden="true">⌕</span><input id="site-filter" type="search" placeholder="Filter sites…" autocomplete="off"></label>
+        <details class="add-site-panel">
+          <summary class="button button-primary">＋ Add site</summary>
+          <form action="/sites" method="post" class="add-site-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-heading"><strong>Add a site</strong><span>Saved to Supabase and included in the next checker run.</span></div>
+            <label>Site key<input name="site_key" required autocomplete="off" placeholder="example-site-key"></label>
+            <label>Region<select name="region" required>{% for region_id, host in region_options %}<option value="{{ region_id }}">{{ region_id }} · {{ host }}</option>{% endfor %}</select></label>
+            <label>Cron schedule<input name="cron" required value="0 */3 * * *" placeholder="0 */3 * * *"><small>Five-field cron, interpreted in UTC.</small></label>
+            <label>Maximum duration (minutes)<input name="max_duration_minutes" type="number" min="1" value="120" required></label>
+            <label>Version<select name="version"><option value="v1">v1</option><option value="v2" selected>v2</option></select></label>
+            <label>App<select name="app"><option value="shopify">Shopify</option><option value="bigcommerce">BigCommerce</option></select></label>
+            <button class="button button-primary add-site-submit" type="submit">Save site</button>
+          </form>
+        </details>
+      </div>
     </div>
     {% if rows %}
     <div class="table-wrap">
@@ -44,6 +60,25 @@
         {% endfor %}
         </tbody>
       </table>
+    </div>
+    <div class="mobile-site-list" id="mobile-site-list">
+      {% for row in rows %}{% set entry = row.latest_entry or {} %}
+      <details class="mobile-site-card site-row" data-search="{{ (row.site_key ~ ' ' ~ row.region ~ ' ' ~ row.version ~ ' ' ~ row.app ~ ' ' ~ row.state)|lower }}">
+        <summary>
+          <span class="mobile-site-summary"><strong>{{ row.site_key }}</strong><span>{{ row.region }} · {{ row.version }} · {{ row.app }}</span><small>{{ row.cron_description }}</small></span>
+          <span class="state-pill state-{{ row.state|replace('_', '-') }}"><span class="state-dot"></span>{{ "not checked yet" if row.state == "no_data" else row.state|replace('_', ' ') }}</span>
+          <span class="expand-mark" aria-hidden="true"></span>
+        </summary>
+        <div class="mobile-site-details">
+          <div><span>Schedule</span><strong>{{ row.cron_description }}</strong><code>{{ row.cron }}</code></div>
+          <div><span>Scheduled run (IST)</span><strong>{% if row.scheduled_time %}<time class="ist-time" data-utc="{{ row.scheduled_time }}">{{ row.scheduled_time }}</time>{% else %}—{% endif %}</strong></div>
+          <div><span>Last checked (IST)</span><strong>{% if row.checked_at %}<time class="ist-time" data-utc="{{ row.checked_at }}">{{ row.checked_at }}</time>{% else %}Not checked yet{% endif %}</strong></div>
+          <div><span>Latest API entry</span><strong>{% if entry %}{{ entry.status or "Unknown" }}{% if entry.code is defined %} · {{ entry.code }}{% endif %}{% elif row.state == "no_data" %}No check recorded{% else %}No entry for this run{% endif %}</strong></div>
+          <div><span>Alert</span><strong>{{ "Sent" if row.alert_sent else "—" }}</strong></div>
+          <div class="mobile-site-links"><a href="/site/{{ row.site_key|urlencode }}?region={{ row.region|urlencode }}">Run history</a>{% if row.status_url %}<a href="{{ row.status_url }}" target="_blank" rel="noopener">Open status API ↗</a>{% endif %}</div>
+        </div>
+      </details>
+      {% endfor %}
     </div>
     <p id="no-results" class="empty-state" hidden>No sites match that filter.</p>
     {% else %}

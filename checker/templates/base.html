@@ -24,6 +24,9 @@
     </form>
     {% endif %}
   </header>
+  {% with notices = get_flashed_messages(with_categories=true) %}
+    {% if notices %}<div class="notice-stack" role="status">{% for category, message in notices %}<div class="notice notice-{{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+  {% endwith %}
   {% block content %}{% endblock %}
   <script>
     (() => {
