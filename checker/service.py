@@ -13,7 +13,8 @@ from checker.config import Config
 from checker.csv_loader import LocalLoader, ObjectStorageLoader, GoogleSheetLoader, parse_sites
 from checker.emailjs_notifier import EmailJSNotifier
 from checker.evaluator import evaluate, schedule_times
-from checker.notifiers import alert_text, expected_cause, format_epoch_ms_ist, format_ist
+from checker.notifiers import (SlackWebhookNotifier, alert_text, expected_cause,
+                               format_epoch_ms_ist, format_ist)
 from checker.status_client import StatusClient
 from checker.supabase_store import SupabaseStore
 
@@ -35,20 +36,62 @@ def _loader(cfg: Config):
     return LocalLoader()
 
 
-def _deliver(store: SupabaseStore, notifier: EmailJSNotifier, *, key: str,
+class PartialDeliveryError(RuntimeError):
+    """One or more alert channels failed after another channel may have sent."""
+
+    def __init__(self, message: str, delivered: bool) -> None:
+        self.delivered = delivered
+        super().__init__(message)
+
+
+def _notifiers(cfg: Config) -> dict[str, Any]:
+    """Build the configured alert channels; email remains the default."""
+    channels: dict[str, Any] = {}
+    if cfg.slack_webhook_url:
+        channels["slack"] = SlackWebhookNotifier(cfg.slack_webhook_url)
+    email_values = (cfg.emailjs_service_id, cfg.emailjs_template_id, cfg.emailjs_public_key, cfg.emailjs_to_email)
+    if any(email_values) or not channels:
+        channels["emailjs"] = EmailJSNotifier(cfg)
+    return channels
+
+
+def _deliver(store: SupabaseStore, notifiers: dict[str, Any], *, key: str,
              record: dict[str, Any], subject: str, body: str,
              details: dict[str, Any] | None = None, dry_run: bool = False) -> bool:
-    """Send an alert once; persist its event only after provider success."""
+    """Send once per channel and persist channel and aggregate delivery records."""
     if store.get_delivery(key):
         return False
     if dry_run:
         LOGGER.info("DRY_RUN alert subject=%s body=%s", subject, body)
         return False
-    notifier.send(subject, body, details)
-    store.insert_delivery({**record, "dedupe_key": key,
-                           "subject": subject, "message": body,
-                           "sent_at": datetime.now(timezone.utc).isoformat()})
-    return True
+    if not notifiers:
+        raise RuntimeError("No alert channels configured")
+    single_channel = len(notifiers) == 1
+    previously_delivered = False
+    delivered_now = False
+    failures: list[str] = []
+    for channel, notifier in notifiers.items():
+        channel_key = key if single_channel else _digest([key, "channel", channel])
+        if store.get_delivery(channel_key):
+            previously_delivered = True
+            continue
+        try:
+            notifier.send(subject, body, details)
+        except Exception as exc:
+            failures.append(f"{channel}: {exc}")
+            continue
+        store.insert_delivery({**record, "dedupe_key": channel_key,
+                               "kind": record["kind"] if single_channel else f"{record['kind']}:{channel}",
+                               "subject": subject, "message": body,
+                               "sent_at": datetime.now(timezone.utc).isoformat()})
+        delivered_now = True
+    if failures:
+        raise PartialDeliveryError("; ".join(failures), previously_delivered or delivered_now)
+    if not single_channel:
+        store.insert_delivery({**record, "dedupe_key": key,
+                               "subject": subject, "message": body,
+                               "sent_at": datetime.now(timezone.utc).isoformat()})
+    return previously_delivered or delivered_now
 
 
 def run_checks(cfg: Config, *, now: datetime | None = None) -> dict[str, Any]:
@@ -58,7 +101,7 @@ def run_checks(cfg: Config, *, now: datetime | None = None) -> dict[str, Any]:
         raise ValueError("Supabase persistence is required (set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)")
     store = SupabaseStore(cfg.supabase_url, cfg.supabase_service_role_key, cfg.request_timeout)
     store.prune((checked_at - timedelta(days=7)).isoformat())
-    notifier = EmailJSNotifier(cfg)
+    notifiers = _notifiers(cfg)
     csv_path = cfg.site_csv_path
     content = _loader(cfg).load(csv_path)
     sites, config_errors = parse_sites(content, cfg.region_hosts)
@@ -71,7 +114,7 @@ def run_checks(cfg: Config, *, now: datetime | None = None) -> dict[str, Any]:
     if config_errors:
         fingerprint = _digest(sorted(config_errors))
         key = _digest(["config_error", fingerprint])
-        _deliver(store, notifier, key=key,
+        _deliver(store, notifiers, key=key,
                  record={"kind": "config_error", "region": "all", "site_key": "", "scheduled_time": None},
                  subject="Indexing alert: config_error",
                  body="Invalid site CSV rows:\n" + "\n".join(config_errors), dry_run=cfg.dry_run)
@@ -147,7 +190,7 @@ def run_checks(cfg: Config, *, now: datetime | None = None) -> dict[str, Any]:
                 except (KeyError, TypeError, ValueError, OverflowError, OSError):
                     api_timestamp_ist = "none"
                 try:
-                    sent = _deliver(store, notifier, key=episode_key, record=delivery_record,
+                    sent = _deliver(store, notifiers, key=episode_key, record=delivery_record,
                                     subject=subject, body=body,
                                     details={"site_key": site.site_key, "region": site.region,
                                              "version": site.version, "app": site.app,
@@ -158,6 +201,7 @@ def run_checks(cfg: Config, *, now: datetime | None = None) -> dict[str, Any]:
                                              "status_url": status_url}, dry_run=cfg.dry_run)
                 except Exception as exc:
                     counts["delivery_errors"] += 1
+                    sent = bool(getattr(exc, "delivered", False))
                     run_record["error_message"] = f"alert delivery failed: {exc}"
                     LOGGER.exception("alert delivery failed for %s [%s]", site.site_key, site.region)
                 if sent:
@@ -174,7 +218,7 @@ def run_checks(cfg: Config, *, now: datetime | None = None) -> dict[str, Any]:
                     run_record["alert_episode_key"] = recovery_episode
                     try:
                         recovery_body = f"Run scheduled {scheduled_ist} recovered (IST).\nStatus URL: {status_url}"
-                        recovery_sent = _deliver(store, notifier, key=recovery_key,
+                        recovery_sent = _deliver(store, notifiers, key=recovery_key,
                                         record={**delivery_record, "kind": "recovered"},
                                         subject=f"Indexing alert: recovered - {site.site_key} [{site.region}]",
                                         body=recovery_body,
@@ -204,7 +248,7 @@ def run_checks(cfg: Config, *, now: datetime | None = None) -> dict[str, Any]:
         body = "Status API checks failed after retries; these are checker errors, not indexing failures:\n"
         body += "\n".join(f"{site.site_key}: {error}" for site, error in errors)
         try:
-            sent = _deliver(store, notifier, key=key,
+            sent = _deliver(store, notifiers, key=key,
                             record={"kind": "checker_error", "region": region, "site_key": "", "scheduled_time": bucket},
                             subject=f"Indexing alert: checker_error [{region}]", body=body,
                             details={"region": region, "state": "checker_error", "scheduled_time": bucket})

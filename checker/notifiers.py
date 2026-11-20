@@ -62,6 +62,22 @@ class Notifier:
             raise RuntimeError("No Slack or email notifier configured")
 
 
+class SlackWebhookNotifier:
+    """Post alert messages to the Slack channel configured by an incoming webhook."""
+
+    def __init__(self, webhook_url: str) -> None:
+        self.webhook_url = webhook_url
+
+    def send(self, subject: str, body: str, details: dict[str, Any] | None = None) -> None:
+        try:
+            response = requests.post(self.webhook_url, json={"text": f"*{subject}*\n{body}"}, timeout=15)
+        except requests.RequestException as exc:
+            # Avoid including the webhook URL, which contains its secret, in logs.
+            raise RuntimeError(f"Slack webhook request failed ({type(exc).__name__})") from None
+        if not response.ok:
+            raise RuntimeError(f"Slack webhook rejected the message (HTTP {response.status_code})")
+
+
 def alert_text(site: Any, result: dict[str, Any], host: str,
                checked_at: datetime | None = None) -> tuple[str, str]:
     """Format an indexing alert subject and plain-text body."""

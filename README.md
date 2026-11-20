@@ -48,6 +48,10 @@ Alert email timestamps use IST. The API's raw `date` text is omitted because its
 
 Set `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`, `EMAILJS_PUBLIC_KEY`, `EMAILJS_TO_EMAIL`, and (if enabled for the account) `EMAILJS_PRIVATE_KEY` in Render. Add optional comma-separated `EMAILJS_CC_EMAILS` and `EMAILJS_BCC_EMAILS` lists for additional recipients. In the EmailJS template settings, set **CC** to `{{cc_emails}}` and **BCC** to `{{bcc_emails}}` (leave either field blank if unused). The app calls EmailJS over HTTPS. A delivery row is written to Supabase only after EmailJS returns success.
 
+## Slack alerts
+
+Create a Slack app, enable **Incoming Webhooks**, add a webhook to the alert channel, and authorize it. Store the generated URL as `SLACK_WEBHOOK_URL` in Render; keep it private. Viper posts alerts to Slack as well as EmailJS when both are configured. If EmailJS is not configured, Slack can be the only alert channel. Each channel's successful delivery is tracked separately so a retry after one channel fails does not resend to a channel that already succeeded. Each incoming webhook posts to the channel selected when it was created; create another webhook to target another channel.
+
 ## Render setup
 
 1. Push this branch (`feat_service_method`) to the Git remote connected to Render.
