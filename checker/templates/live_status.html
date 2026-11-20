@@ -49,6 +49,23 @@
         </tbody>
       </table>
     </div>
+    <div class="mobile-live-list">
+      {% for row in rows %}
+      <details class="mobile-live-card live-row" data-state="{{ row.state }}" data-search="{{ (row.site_key ~ ' ' ~ row.region ~ ' ' ~ row.version ~ ' ' ~ row.app)|lower }}">
+        <summary>
+          <span class="mobile-live-summary"><strong>{{ row.site_key }}</strong><span>{{ row.region }} · {{ row.version }} · {{ row.app }}</span></span>
+          <span class="state-pill live-state-{{ row.state }}"><span class="state-dot"></span>{{ row.api_status or ('Unavailable' if row.error else 'No status') }}{% if row.code is not none %} · {{ row.code }}{% endif %}</span>
+          <span class="expand-mark" aria-hidden="true"></span>
+        </summary>
+        <div class="mobile-live-details">
+          <div><span>Current status</span><strong>{{ row.api_status or ('Unavailable' if row.error else 'No status') }}{% if row.code is not none %} · {{ row.code }}{% endif %}</strong>{% if row.detail %}<small title="{{ row.error }}">{{ row.detail }}</small>{% endif %}</div>
+          <div><span>API timestamp</span><strong>{% if row.timestamp_ms is not none %}<time class="ist-api-time" data-ms="{{ row.timestamp_ms }}">{{ row.timestamp_ms }}</time>{% else %}—{% endif %}</strong></div>
+          <div><span>Version / app</span><strong>{{ row.version }} · {{ row.app }}</strong></div>
+          <div class="mobile-live-links"><a href="{{ row.status_url }}" target="_blank" rel="noopener">Open status API ↗</a></div>
+        </div>
+      </details>
+      {% endfor %}
+    </div>
     <p id="live-empty" class="empty-state" hidden>No sites match these filters.</p>
     {% else %}<div class="empty-state"><h3>No valid sites found</h3><p>Check the CSV source and its site rows.</p></div>{% endif %}
     <div class="card-footer"><span>Live API data, fetched on page load</span><span>{{ rows|length }} site{{ 's' if rows|length != 1 else '' }}</span></div>
