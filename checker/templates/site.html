@@ -24,6 +24,23 @@
         </tr>
       {% endfor %}</tbody></table>
     </div>
+    <div class="mobile-history-list">
+      {% for row in rows %}{% set entry = row.latest_entry or {} %}
+      <details class="mobile-history-card">
+        <summary>
+          <span class="mobile-history-summary"><span class="state-pill state-{{ row.state|replace('_', '-') }}"><span class="state-dot"></span>{{ row.state|replace('_', ' ') }}</span><strong>{% if row.scheduled_time %}<time class="ist-time" data-utc="{{ row.scheduled_time }}">{{ row.scheduled_time }}</time>{% else %}Scheduled time unavailable{% endif %}</strong></span>
+          <span class="expand-mark" aria-hidden="true"></span>
+        </summary>
+        <div class="mobile-history-details">
+          {% if row.state == 'pending' %}<p class="history-note">Still within the wait window.</p>{% elif row.state == 'missing' %}<p class="history-note">Likely feed pull pipeline failure.</p>{% endif %}
+          <div><span>Checked (IST)</span><strong>{% if row.checked_at %}<time class="ist-time" data-utc="{{ row.checked_at }}">{{ row.checked_at }}</time>{% else %}—{% endif %}</strong></div>
+          <div><span>API entry</span><strong>{% if entry %}{{ entry.status or "Unknown" }}{% if entry.code is defined %} · {{ entry.code }}{% endif %}{% else %}No entry for this run{% endif %}</strong></div>
+          <div><span>Alert sent</span><strong class="alert-indicator {{ 'alert-sent' if row.alert_sent else 'alert-none' }}">{{ "Sent" if row.alert_sent else "—" }}</strong></div>
+          <div><span>Message</span><strong>{% if entry.message %}{{ entry.message }}{% elif row.error_message %}{{ row.error_message }}{% elif row.state == 'pending' %}Waiting for the API entry; the allowed wait period has not ended.{% elif row.state == 'missing' %}The allowed wait period ended without an API entry for this scheduled run.{% else %}No message was provided by the API.{% endif %}</strong></div>
+        </div>
+      </details>
+      {% endfor %}
+    </div>
     {% endif %}
   </section>
   <p class="page-footnote">Scheduled is the planned run time from the CSV cron; Checked is when Viper queried the status API. Both are displayed in IST.</p>
