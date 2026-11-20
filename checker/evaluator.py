@@ -12,7 +12,7 @@ UTC = timezone.utc
 SUCCESS = {"INDEXED"}
 FAILURE = {"FAILED", "ERROR"}
 REJECTED = {"REJECTED"}
-IN_PROGRESS = {"INDEXING", "PROCESSING", "IN_PROGRESS"}
+IN_PROGRESS = {"INDEXING", "PROCESSING", "IN_PROGRESS", "ACCEPTED", "QUEUED"}
 
 
 def schedule_times(site: Site, now: datetime) -> tuple[datetime, datetime, datetime]:
@@ -50,9 +50,10 @@ def evaluate(site: Site, history: list[dict[str, Any]], now: datetime, scheduled
         status = str(entry.get("status", "UNKNOWN")).upper()
         code = entry.get("code")
         if status in REJECTED: return "rejected"
-        if status in FAILURE or (status not in SUCCESS and code is not None and code != 200): return "failed"
-        if status in SUCCESS and code == 200: return "ok"
+        if status in FAILURE: return "failed"
         if status in IN_PROGRESS: return "in_progress"
+        if status not in SUCCESS and code is not None and code != 200: return "failed"
+        if status in SUCCESS and code == 200: return "ok"
         return "unknown"
     classes = [(classify(entry), entry) for _, entry in candidates]
     # History is sorted newest-first. The newest known entry is the current

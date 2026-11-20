@@ -48,9 +48,9 @@ Alert email timestamps use IST. The API's raw `date` text is omitted because its
 
 Set `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`, `EMAILJS_PUBLIC_KEY`, `EMAILJS_TO_EMAIL`, and (if enabled for the account) `EMAILJS_PRIVATE_KEY` in Render. Add optional comma-separated `EMAILJS_CC_EMAILS` and `EMAILJS_BCC_EMAILS` lists for additional recipients. In the EmailJS template settings, set **CC** to `{{cc_emails}}` and **BCC** to `{{bcc_emails}}` (leave either field blank if unused). The app calls EmailJS over HTTPS. A delivery row is written to Supabase only after EmailJS returns success.
 
-## Slack alerts
+## Slack alerts and channel selection
 
-Create a Slack app, enable **Incoming Webhooks**, add a webhook to the alert channel, and authorize it. Store the generated URL as `SLACK_WEBHOOK_URL` in Render; keep it private. Viper posts alerts to Slack as well as EmailJS when both are configured. If EmailJS is not configured, Slack can be the only alert channel. Each channel's successful delivery is tracked separately so a retry after one channel fails does not resend to a channel that already succeeded. Each incoming webhook posts to the channel selected when it was created; create another webhook to target another channel.
+Create a Slack app, enable **Incoming Webhooks**, add a webhook to the alert channel, and authorize it. Store the generated URL as `SLACK_WEBHOOK_URL` in Render; keep it private. Set `ALERT_CHANNEL` in Render to `email`, `slack`, or `both`. It defaults to `email` to preserve the existing behavior. `slack` and `both` require `SLACK_WEBHOOK_URL`; `email` requires the EmailJS settings above. When using `both`, successful deliveries are tracked separately so a retry after one channel fails does not resend to a channel that already succeeded. Each incoming webhook posts to the channel selected when it was created; create another webhook to target another channel.
 
 ## Render setup
 
@@ -107,6 +107,7 @@ The `site_runs` table is unique on `(region, site_key, scheduled_time)`, so each
 
 - `TIMESTAMP_SEMANTICS` defaults to `finish`; confirm the platform's actual `timeStamp` meaning. Status classifications are defined in [`checker/evaluator.py`](checker/evaluator.py).
 - The dashboard shows latest observations and the latest history stored by the checker; it does not query the status endpoint on every page load.
+- `ACCEPTED` and `QUEUED` API statuses are treated as in-progress. They do not trigger failure alerts while within the configured duration and buffer; if they remain active beyond that deadline, they are classified as `stuck`.
 - The run endpoint executes checks in the web request and is intended for a modest site list. If checks approach the request timeout, use a queue/background worker or paid Render Cron Job rather than increasing HTTP timeouts indefinitely.
 - The free Render service may cold-start or restart, and cron-job.org can be delayed. This is suitable for a prototype, not an alerting SLA.
 

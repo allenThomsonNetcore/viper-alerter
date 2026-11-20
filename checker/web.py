@@ -120,7 +120,7 @@ def _live_sites(cfg) -> list[dict[str, Any]]:
             latest = max(history, key=lambda entry: _timestamp_value(entry.get("timeStamp")), default=None)
             raw_status = str((latest or {}).get("status", "")).upper()
             code = (latest or {}).get("code")
-            if raw_status in {"INDEXING", "PROCESSING", "IN_PROGRESS"}:
+            if raw_status in {"INDEXING", "PROCESSING", "IN_PROGRESS", "ACCEPTED", "QUEUED"}:
                 state = "indexing"
             elif raw_status == "REJECTED":
                 state = "rejected"

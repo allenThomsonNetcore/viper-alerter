@@ -42,6 +42,8 @@ services:
         sync: false
       - key: SLACK_WEBHOOK_URL
         sync: false
+      - key: ALERT_CHANNEL
+        value: email
       - key: BUFFER_MINUTES
         value: "15"
       - key: MAX_WORKERS

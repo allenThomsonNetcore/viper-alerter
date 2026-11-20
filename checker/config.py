@@ -33,6 +33,7 @@ class Config:
     configmap_name: str = "indexing-alert-state"
     namespace: str = "default"
     slack_webhook_url: str = ""
+    alert_channel: str = "email"
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""
@@ -80,6 +81,9 @@ def load_config() -> Config:
     cfg.configmap_name = os.getenv("STATE_CONFIGMAP", cfg.configmap_name)
     cfg.namespace = os.getenv("POD_NAMESPACE", os.getenv("NAMESPACE", cfg.namespace))
     cfg.slack_webhook_url = os.getenv("SLACK_WEBHOOK_URL", "")
+    cfg.alert_channel = os.getenv("ALERT_CHANNEL", "email").strip().lower()
+    if cfg.alert_channel not in {"email", "slack", "both"}:
+        raise ValueError("ALERT_CHANNEL must be one of: email, slack, both")
     cfg.smtp_host = os.getenv("SMTP_HOST", "")
     cfg.smtp_port = int(os.getenv("SMTP_PORT", "587"))
     cfg.smtp_user = os.getenv("SMTP_USER", "")

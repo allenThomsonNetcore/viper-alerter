@@ -45,13 +45,14 @@ class PartialDeliveryError(RuntimeError):
 
 
 def _notifiers(cfg: Config) -> dict[str, Any]:
-    """Build the configured alert channels; email remains the default."""
+    """Build the alert channels selected by ALERT_CHANNEL."""
     channels: dict[str, Any] = {}
-    if cfg.slack_webhook_url:
-        channels["slack"] = SlackWebhookNotifier(cfg.slack_webhook_url)
-    email_values = (cfg.emailjs_service_id, cfg.emailjs_template_id, cfg.emailjs_public_key, cfg.emailjs_to_email)
-    if any(email_values) or not channels:
+    if cfg.alert_channel in {"email", "both"}:
         channels["emailjs"] = EmailJSNotifier(cfg)
+    if cfg.alert_channel in {"slack", "both"}:
+        if not cfg.slack_webhook_url:
+            raise ValueError("Set SLACK_WEBHOOK_URL when ALERT_CHANNEL is slack or both")
+        channels["slack"] = SlackWebhookNotifier(cfg.slack_webhook_url)
     return channels
 
 
@@ -59,20 +60,25 @@ def _deliver(store: SupabaseStore, notifiers: dict[str, Any], *, key: str,
              record: dict[str, Any], subject: str, body: str,
              details: dict[str, Any] | None = None, dry_run: bool = False) -> bool:
     """Send once per channel and persist channel and aggregate delivery records."""
-    if store.get_delivery(key):
-        return False
     if dry_run:
         LOGGER.info("DRY_RUN alert subject=%s body=%s", subject, body)
         return False
     if not notifiers:
         raise RuntimeError("No alert channels configured")
-    single_channel = len(notifiers) == 1
+    aggregate_record = store.get_delivery(key)
+    # Before per-channel keys were introduced, the aggregate key represented a
+    # successful EmailJS delivery. Treat that legacy record as email-only so
+    # newly enabled Slack can still receive the existing alert episode.
+    legacy_email_delivery = bool(aggregate_record and ":" not in aggregate_record.get("kind", ""))
     previously_delivered = False
     delivered_now = False
     failures: list[str] = []
     for channel, notifier in notifiers.items():
-        channel_key = key if single_channel else _digest([key, "channel", channel])
+        channel_key = _digest([key, "channel", channel])
         if store.get_delivery(channel_key):
+            previously_delivered = True
+            continue
+        if legacy_email_delivery and channel == "emailjs":
             previously_delivered = True
             continue
         try:
@@ -81,14 +87,15 @@ def _deliver(store: SupabaseStore, notifiers: dict[str, Any], *, key: str,
             failures.append(f"{channel}: {exc}")
             continue
         store.insert_delivery({**record, "dedupe_key": channel_key,
-                               "kind": record["kind"] if single_channel else f"{record['kind']}:{channel}",
+                               "kind": f"{record['kind']}:{channel}",
                                "subject": subject, "message": body,
                                "sent_at": datetime.now(timezone.utc).isoformat()})
         delivered_now = True
     if failures:
         raise PartialDeliveryError("; ".join(failures), previously_delivered or delivered_now)
-    if not single_channel:
+    if not aggregate_record:
         store.insert_delivery({**record, "dedupe_key": key,
+                               "kind": f"{record['kind']}:all",
                                "subject": subject, "message": body,
                                "sent_at": datetime.now(timezone.utc).isoformat()})
     return previously_delivered or delivered_now
