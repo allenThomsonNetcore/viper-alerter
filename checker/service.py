@@ -13,7 +13,7 @@ from checker.config import Config
 from checker.csv_loader import LocalLoader, ObjectStorageLoader, GoogleSheetLoader, merge_site_configs, parse_sites
 from checker.emailjs_notifier import EmailJSNotifier
 from checker.evaluator import evaluate, schedule_times
-from checker.notifiers import (SlackWebhookNotifier, alert_text, expected_cause,
+from checker.notifiers import (SlackWebhookNotifier, SlackWebAPINotifier, alert_text, expected_cause,
                                format_epoch_ms_ist, format_ist)
 from checker.status_client import StatusClient
 from checker.supabase_store import SupabaseStore
@@ -50,9 +50,12 @@ def _notifiers(cfg: Config) -> dict[str, Any]:
     if cfg.alert_channel in {"email", "both"}:
         channels["emailjs"] = EmailJSNotifier(cfg)
     if cfg.alert_channel in {"slack", "both"}:
-        if not cfg.slack_webhook_url:
-            raise ValueError("Set SLACK_WEBHOOK_URL when ALERT_CHANNEL is slack or both")
-        channels["slack"] = SlackWebhookNotifier(cfg.slack_webhook_url)
+        if cfg.slack_bot_token and cfg.slack_recipient_ids:
+            channels["slack"] = SlackWebAPINotifier(cfg.slack_bot_token, cfg.slack_recipient_ids)
+        elif cfg.slack_webhook_url:
+            channels["slack"] = SlackWebhookNotifier(cfg.slack_webhook_url)
+        else:
+            raise ValueError("Set SLACK_BOT_TOKEN and SLACK_RECIPIENT_IDS when ALERT_CHANNEL is slack or both")
     return channels
 
 

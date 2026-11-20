@@ -52,7 +52,9 @@ Set `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`, `EMAILJS_PUBLIC_KEY`, `EMAILJS_
 
 ## Slack alerts and channel selection
 
-Create a Slack app, enable **Incoming Webhooks**, add a webhook to the alert channel, and authorize it. Store the generated URL as `SLACK_WEBHOOK_URL` in Render; keep it private. Set `ALERT_CHANNEL` in Render to `email`, `slack`, or `both`. It defaults to `email` to preserve the existing behavior. `slack` and `both` require `SLACK_WEBHOOK_URL`; `email` requires the EmailJS settings above. When using `both`, successful deliveries are tracked separately so a retry after one channel fails does not resend to a channel that already succeeded. Each incoming webhook posts to the channel selected when it was created; create another webhook to target another channel.
+For direct messages, add the bot scopes `chat:write` and `im:write` to your Slack app, then reinstall the app to the workspace. Set its Bot User OAuth Token as `SLACK_BOT_TOKEN` in Render and comma-separated Slack user IDs as `SLACK_RECIPIENT_IDS` (currently `U0AE968E7H6`). Keep the bot token private. Viper opens a DM with each user and posts the alert through Slack's `chat.postMessage` API. All recipients must belong to the workspace where the app is installed. The legacy `SLACK_WEBHOOK_URL` remains supported if no bot token and recipient list are configured.
+
+Set `ALERT_CHANNEL` in Render to `email`, `slack`, or `both`. It defaults to `email` to preserve the existing behavior. `slack` and `both` require either `SLACK_BOT_TOKEN` plus `SLACK_RECIPIENT_IDS`, or the legacy `SLACK_WEBHOOK_URL`; `email` requires the EmailJS settings above. When using `both`, successful channel deliveries are tracked separately so a retry after one channel fails does not resend to a channel that already succeeded. Add more Slack recipients by separating their user IDs with commas.
 
 ## Render setup
 

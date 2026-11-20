@@ -42,6 +42,10 @@ services:
         sync: false
       - key: SLACK_WEBHOOK_URL
         sync: false
+      - key: SLACK_BOT_TOKEN
+        sync: false
+      - key: SLACK_RECIPIENT_IDS
+        value: U0AE968E7H6
       - key: ALERT_CHANNEL
         value: email
       - key: BUFFER_MINUTES

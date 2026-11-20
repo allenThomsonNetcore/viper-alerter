@@ -78,6 +78,55 @@ class SlackWebhookNotifier:
             raise RuntimeError(f"Slack webhook rejected the message (HTTP {response.status_code})")
 
 
+class SlackWebAPINotifier:
+    """Open a DM with each configured Slack user and post via chat.postMessage."""
+
+    API_BASE = "https://slack.com/api"
+
+    def __init__(self, bot_token: str, recipient_ids: list[str]) -> None:
+        self.bot_token = bot_token
+        self.recipient_ids = list(dict.fromkeys(recipient_ids))
+
+    def _post(self, method: str, payload: dict[str, str]) -> dict[str, Any]:
+        try:
+            response = requests.post(
+                f"{self.API_BASE}/{method}",
+                headers={"Authorization": f"Bearer {self.bot_token}"},
+                json=payload,
+                timeout=20,
+            )
+        except requests.RequestException as exc:
+            raise RuntimeError(f"Slack {method} request failed ({type(exc).__name__})") from None
+        if not response.ok:
+            raise RuntimeError(f"Slack {method} returned HTTP {response.status_code}")
+        try:
+            result = response.json()
+        except ValueError:
+            raise RuntimeError(f"Slack {method} returned an invalid response") from None
+        if not result.get("ok"):
+            raise RuntimeError(f"Slack {method} failed: {result.get('error', 'unknown_error')}")
+        return result
+
+    def send(self, subject: str, body: str, details: dict[str, Any] | None = None) -> None:
+        if not self.bot_token:
+            raise RuntimeError("Slack bot token is not configured")
+        if not self.recipient_ids:
+            raise RuntimeError("No Slack recipient IDs are configured")
+        message = f"*{subject}*\n{body}"
+        failures = []
+        for user_id in self.recipient_ids:
+            try:
+                opened = self._post("conversations.open", {"users": user_id})
+                channel_id = (opened.get("channel") or {}).get("id")
+                if not channel_id:
+                    raise RuntimeError("Slack did not return a DM channel ID")
+                self._post("chat.postMessage", {"channel": channel_id, "text": message})
+            except RuntimeError as exc:
+                failures.append(f"{user_id}: {exc}")
+        if failures:
+            raise RuntimeError("Slack DM delivery failed: " + "; ".join(failures))
+
+
 def alert_text(site: Any, result: dict[str, Any], host: str,
                checked_at: datetime | None = None) -> tuple[str, str]:
     """Format an indexing alert subject and plain-text body."""
