@@ -9,7 +9,7 @@ ss-unbxd-auk-prod-wbwr-Birkenstock-shopify48861706029306,uk,*/30 * * * *,120,v2,
 ss-unbxd-auk-prod-wbwr-UnderArmour-shopify48861706029107,uk,*/30 * * * *,120,v2,shopify
 ss-unbxd-aus-shopify-morfurniture-com811551761318384,us,0 */2 * * *,120,v2,shopify
 ss-unbxd-ganz-MazzuProd18161751638837,anz-gcp,10 */1 * * *,120,v2,shopify
-ss-unbxd-ganz-prod-beautopia9941725309288,anz-gcp,10 */1 * * *,120,v2,shopify
+ss-unbxd-ganz-prod-beautopia9941725309288,anz-gcp,9 */3 * * *,120,v2,shopify
 ss-unbxd-ganz-prod-blue-illusion-anz23461767337513,anz-gcp,*/40 * * * *,120,v2,shopify
 ss-unbxd-gapac-PC-EXPRESS-PROD82921790140534,sg,0 */12 * * *,120,v2,shopify
 ss-unbxd-guk-prod-holzkern90501791817740,uk-gcp,10 */3 * * *,120,v2,shopify
