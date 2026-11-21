@@ -42,9 +42,12 @@ create table if not exists public.site_configs (
     max_duration_minutes integer not null default 120 check (max_duration_minutes > 0),
     version text not null check (version in ('v1', 'v2')),
     app text not null check (app in ('shopify', 'bigcommerce')),
+    is_enabled boolean not null default true,
     created_at timestamptz not null default now(),
     primary key (region, site_key)
 );
+
+alter table public.site_configs add column if not exists is_enabled boolean not null default true;
 
 create index if not exists alert_deliveries_run_idx
     on public.alert_deliveries (region, site_key, scheduled_time);

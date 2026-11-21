@@ -81,11 +81,12 @@ class SupabaseStore:
         return self._request("GET", "site_configs", params={
             "select": "*", "order": "region.asc,site_key.asc"}) or []
 
-    def insert_site_config(self, record: dict[str, Any]) -> None:
-        """Persist a site configuration entered in the dashboard."""
-        headers = {**self.headers, "Prefer": "return=minimal"}
-        self._check(requests.post(f"{self.base_url}/site_configs", json=record,
-                                  headers=headers, timeout=self.timeout))
+    def upsert_site_config(self, record: dict[str, Any]) -> None:
+        """Create or update a dashboard site configuration or CSV override."""
+        headers = {**self.headers, "Prefer": "resolution=merge-duplicates,return=minimal"}
+        self._check(requests.post(
+            f"{self.base_url}/site_configs", params={"on_conflict": "region,site_key"},
+            json=record, headers=headers, timeout=self.timeout))
 
     def deliveries_for_run(self, region: str, site_key: str, scheduled_time: str) -> list[dict[str, Any]]:
         """Read alert history for one scheduled site run."""

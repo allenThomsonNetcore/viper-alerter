@@ -18,7 +18,7 @@ The home page also shows each configured site's cron expression with a plain-lan
 
 Create a Supabase project, open its SQL Editor, and run [`supabase/schema.sql`](supabase/schema.sql). Copy the Project URL and server-side `service_role` key into Render environment variables. Keep the service-role key private; the dashboard accesses the database only through the Flask backend. The schema enables RLS without granting browser roles direct access.
 
-The dashboard's **Add site** form stores new site configurations in the `site_configs` table. Re-run the latest schema in the Supabase SQL Editor before deploying this feature. Dashboard-added sites are merged with the CSV site list and checked by the same scheduler.
+The dashboard's **Add site** form stores new site configurations in the `site_configs` table. Dashboard deletions create a disabled site override, so a deleted site stays excluded even if it is still present in the CSV; existing run history is retained. Re-run the latest schema in the Supabase SQL Editor before deploying these features. Dashboard site entries are merged with the CSV site list and checked by the same scheduler.
 
 If a logged-in dashboard gets a Supabase 403, verify `SUPABASE_URL` and the key are from the same project, then rerun the schema so its `service_role` grants are applied. New `sb_secret_...` keys are sent only in the `apikey` header; legacy service-role JWTs are also sent as a Bearer token.
 

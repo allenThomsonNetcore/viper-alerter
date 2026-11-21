@@ -7,7 +7,7 @@
   --line: #e4e9f0;
   --surface: #fff;
   --canvas: #f3f6fa;
-  --navy: #101a2c;
+  --navy: #fff;
   --blue: #2766d6;
   font: 14px/1.5 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--ink);
@@ -19,14 +19,14 @@ body { margin: 0; min-height: 100vh; }
 a { color: var(--blue); text-decoration: none; }
 a:hover { text-decoration: underline; }
 button, input { font: inherit; }
-.topbar { height: 66px; padding: 0 max(22px, calc((100vw - 1240px) / 2)); display: flex; align-items: center; justify-content: space-between; background: var(--navy); color: #fff; }
-.brand { display: inline-flex; align-items: center; gap: 11px; color: #fff; font: 700 15px 'Manrope', sans-serif; letter-spacing: -.2px; }
+.topbar { height: 76px; padding: 0 max(22px, calc((100vw - 1240px) / 2)); display: flex; align-items: center; justify-content: space-between; background: var(--navy); color: var(--ink); border-bottom: 1px solid var(--line); }
+.brand { display: inline-flex; align-items: center; gap: 11px; color: var(--ink); font: 700 15px 'Manrope', sans-serif; letter-spacing: -.2px; }
 .brand:hover { text-decoration: none; }
-.brand-mark,.login-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: linear-gradient(145deg,#62b5ff,#4d6cf5); color: white; font: 800 18px 'Manrope',sans-serif; box-shadow: 0 4px 14px #245caa55; }
-.brand-muted { color: #aab6c9; font-weight: 500; }
+.brand-mark,.login-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: #fff1e9; color: #f26932; font: 800 18px 'Manrope',sans-serif; box-shadow: none; }
+.brand-muted { color: #738095; font-weight: 500; }
 .topnav { display: flex; align-self: stretch; align-items: center; gap: 5px; margin-left: auto; margin-right: 18px; }
-.topnav a { padding: 8px 12px; border-radius: 7px; color: #b9c5d5; font-size: 12px; font-weight: 600; }
-.topnav a:hover,.topnav a.active { color: #fff; background: #ffffff14; text-decoration: none; }
+.topnav a { align-self: stretch; display: inline-flex; align-items: center; padding: 8px 13px; border-radius: 0; border-bottom: 3px solid transparent; color: #63748a; font-size: 13px; font-weight: 600; }
+.topnav a:hover,.topnav a.active { color: var(--blue); background: transparent; border-bottom-color: var(--blue); text-decoration: none; }
 .logout-form { margin: 0; }
 .page-shell { width: min(1240px, calc(100% - 44px)); margin: 34px auto 52px; }
 .page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin: 0 0 24px; }
@@ -111,7 +111,11 @@ tbody tr:hover { background: #fbfcfe; }
 .site-schedule { margin: 8px 0 0; color: #40516a; font-weight: 600; }.site-schedule .cell-sub { font-weight: 400; }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 38px; padding: 0 14px; border: 1px solid transparent; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 700; text-decoration: none; }
 .button:hover { text-decoration: none; }.button-primary { color: #fff; background: #2867d5; box-shadow: 0 3px 8px #2867d530; }.button-primary:hover { background: #1f58bd; }
-.button-quiet { min-height: 34px; color: #d0d9e6; background: transparent; border-color: #354158; }.button-quiet:hover { color: #fff; background: #ffffff10; }
+.button-quiet { min-height: 34px; color: #506176; background: #fff; border-color: #d8e0e9; }.button-quiet:hover { color: var(--blue); background: #f7f9fc; }
+.row-actions { display: grid; justify-items: start; gap: 7px; }
+.row-actions form,.mobile-site-links form { margin: 0; }
+.delete-button { padding: 0; border: 0; background: transparent; color: #c64b4b; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.delete-button:hover { color: #9f3030; text-decoration: underline; }
 .login-page { min-height: calc(100vh - 66px); display: grid; align-content: center; justify-items: center; padding: 30px 18px; background: radial-gradient(ellipse at 50% 36%,#e6edf9 0,#f3f6fa 62%); }
 .login-card { width: min(420px,100%); padding: 34px 36px 25px; border: 1px solid #e1e7ef; border-radius: 16px; background: #fff; box-shadow: 0 16px 50px #15274712; }
 .login-mark { width: 42px; height: 42px; margin-bottom: 24px; border-radius: 13px; font-size: 22px; }.login-card h1 { margin-bottom: 8px; font-size: 25px; }.login-copy { margin-bottom: 25px; color: var(--muted); font-size: 13px; }

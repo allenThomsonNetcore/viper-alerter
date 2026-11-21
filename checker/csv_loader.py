@@ -108,14 +108,18 @@ def parse_sites(content: str, region_hosts: dict[str, str]) -> tuple[list[Site],
 
 def merge_site_configs(sites: list[Site], records: list[dict[str, object]],
                       region_hosts: dict[str, str]) -> tuple[list[Site], list[str]]:
-    """Merge persisted dashboard-managed sites over CSV rows by region and key."""
+    """Merge dashboard overrides and suppress sites disabled from the dashboard."""
     output = io.StringIO()
     fields = ["site_key", "region", "cron", "max_duration_minutes", "version", "app"]
     writer = csv.DictWriter(output, fieldnames=fields)
     writer.writeheader()
-    writer.writerows({field: record.get(field, "") for field in fields} for record in records)
+    disabled = {(str(record.get("region", "")), str(record.get("site_key", "")))
+                for record in records if record.get("is_enabled") is False}
+    active_records = [record for record in records if record.get("is_enabled") is not False]
+    writer.writerows({field: record.get(field, "") for field in fields} for record in active_records)
     managed_sites, errors = parse_sites(output.getvalue(), region_hosts)
-    merged = {(site.region, site.site_key): site for site in sites}
+    merged = {(site.region, site.site_key): site for site in sites
+              if (site.region, site.site_key) not in disabled}
     merged.update({(site.region, site.site_key): site for site in managed_sites})
     return sorted(merged.values(), key=lambda site: (site.region, site.site_key)), errors
 

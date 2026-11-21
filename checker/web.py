@@ -316,10 +316,10 @@ def add_site():
         flash(f"{site.site_key} is already configured for region {site.region}.", "error")
         return redirect(url_for("dashboard"))
     try:
-        store.insert_site_config({
+        store.upsert_site_config({
             "site_key": site.site_key, "region": site.region, "cron": site.cron,
             "max_duration_minutes": site.max_duration_minutes,
-            "version": site.version, "app": site.app,
+            "version": site.version, "app": site.app, "is_enabled": True,
         })
     except SupabaseAPIError as exc:
         if exc.status_code == 409:
@@ -328,6 +328,34 @@ def add_site():
             flash(f"Could not save site configuration: {exc.user_message}", "error")
         return redirect(url_for("dashboard"))
     flash(f"Added {site.site_key} ({site.region}). It will be checked on the next scheduled run.", "success")
+    return redirect(url_for("dashboard"))
+
+
+@app.post("/sites/<region>/<site_key>/delete")
+def delete_site(region: str, site_key: str):
+    """Stop monitoring a site while preserving its run history."""
+    submitted_csrf = request.form.get("csrf_token", "")
+    expected_csrf = session.get("csrf_token", "")
+    if not expected_csrf or not hmac.compare_digest(submitted_csrf, expected_csrf):
+        abort(400, description="The form expired. Refresh the dashboard and try again.")
+
+    cfg = load_config()
+    store = _store()
+    site = next((item for item in _configured_sites(cfg, store)
+                 if item.region == region and item.site_key == site_key), None)
+    if site is None:
+        flash(f"{site_key} is not currently being monitored in {region}.", "error")
+        return redirect(url_for("dashboard"))
+    try:
+        store.upsert_site_config({
+            "site_key": site.site_key, "region": site.region, "cron": site.cron,
+            "max_duration_minutes": site.max_duration_minutes,
+            "version": site.version, "app": site.app, "is_enabled": False,
+        })
+    except SupabaseAPIError as exc:
+        flash(f"Could not remove site: {exc.user_message}", "error")
+        return redirect(url_for("dashboard"))
+    flash(f"Removed {site_key} ({region}) from monitoring. Existing run history was kept.", "success")
     return redirect(url_for("dashboard"))
 
 
