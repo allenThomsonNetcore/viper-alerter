@@ -1,2 +1,21 @@
 site_key,region,cron,max_duration_minutes,version,app
 ss-unbxd-aus-shoplc-shopify-prod818081783425717,us,10 */3 * * *,120,v2,shopify
+ss-unbxd-aanz-Bsr-Billy-Guyatts-prod35741769069504,au,44 */3 * * *,120,v2,shopify
+ss-unbxd-aanz-bsr-stancash-prod35741749718105,au,0 * * * *,120,v2,shopify
+ss-unbxd-aapac-Andamen-Prod67681755753922,sg,0 */1 * * *,120,v2,shopify
+ss-unbxd-aapac-prod-shopify-houseofrare58591725608684,sg,0 */2 * * *,120,v2,shopify
+ss-unbxd-auk-prod-ackermans69821759306654,uk,28 */6 * * *,120,v2,shopify
+ss-unbxd-auk-prod-wbwr-Birkenstock-shopify48861706029306,uk,*/30 * * * *,120,v2,shopify
+ss-unbxd-auk-prod-wbwr-UnderArmour-shopify48861706029107,uk,*/30 * * * *,120,v2,shopify
+ss-unbxd-aus-shopify-morfurniture-com811551761318384,us,0 */2 * * *,120,v2,shopify
+ss-unbxd-ganz-MazzuProd18161751638837,anz-gcp,10 */1 * * *,120,v2,shopify
+ss-unbxd-ganz-prod-beautopia9941725309288,anz-gcp,10 */1 * * *,120,v2,shopify
+ss-unbxd-ganz-prod-blue-illusion-anz23461767337513,anz-gcp,*/40 * * * *,120,v2,shopify
+ss-unbxd-gapac-PC-EXPRESS-PROD82921790140534,sg,0 */12 * * *,120,v2,shopify
+ss-unbxd-guk-prod-holzkern90501791817740,uk-gcp,10 */3 * * *,120,v2,shopify
+ss-unbxd-guk-prod-timberland90101790077833,uk,0 */3 * * *,120,v2,shopify
+ss-unbxd-gus-Prod-Contrology31881755671887,us-gcp,31 */2 * * *,120,v2,shopify
+ss-unbxd-gus-Prod-UniqueVintage36331749185404,us-gcp,0 */2 * * *,120,v2,shopify
+ss-unbxd-gus-Vietri-Prod44881770267643,us-gcp,0 * * * *,120,v2,shopify
+ss-unbxd-gus-prod-pilates31881740419459,us-gcp,0 */2 * * *,120,v2,shopify
+ss-unbxd-gus-shopify-fairwaystyles19121748978085,us-gcp,19 */2 * * *,120,v2,shopify
