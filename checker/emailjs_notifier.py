@@ -34,6 +34,8 @@ class EmailJSNotifier:
             "bcc_emails": ", ".join(cfg.emailjs_bcc_emails),
             "subject": subject,
             "message": body,
+            "incident_state": "—",
+            "recovered_by_scheduled_time": "—",
         }
         if details:
             params.update({k: str(v) if v is not None else "" for k, v in details.items()})

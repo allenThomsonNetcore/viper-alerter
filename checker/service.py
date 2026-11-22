@@ -104,6 +104,49 @@ def _deliver(store: SupabaseStore, notifiers: dict[str, Any], *, key: str,
     return previously_delivered or delivered_now
 
 
+def _send_recovery(store: SupabaseStore, notifiers: dict[str, Any], *, site: Any,
+                   incident_state: str, incident_scheduled: datetime,
+                   recovered_scheduled: datetime, latest_entry: dict[str, Any],
+                   checked_at: datetime, episode_key: str, status_url: str,
+                   dry_run: bool = False) -> bool:
+    """Notify that a later successful run recovered an earlier run incident."""
+    incident_time = format_ist(incident_scheduled)
+    recovered_time = format_ist(recovered_scheduled)
+    api_status = latest_entry.get("status") or "success"
+    api_code = latest_entry.get("code")
+    recovery_key = _digest([episode_key, "recovered"])
+    if incident_scheduled == recovered_scheduled:
+        body = (f"The scheduled run at {incident_time} previously showed {incident_state} and has now succeeded.\n"
+                f"Latest API status: {api_status}"
+                f"{f' · {api_code}' if api_code is not None else ''}.\n"
+                f"Current indexing status is recovered.\nStatus URL: {status_url}")
+    else:
+        body = (f"The scheduled run at {incident_time} was {incident_state}.\n"
+                f"A later run scheduled at {recovered_time} succeeded.\n"
+                f"Latest API status: {api_status}"
+                f"{f' · {api_code}' if api_code is not None else ''}.\n"
+                f"Current indexing status is recovered.\nStatus URL: {status_url}")
+    details = {
+        "site_key": site.site_key, "region": site.region,
+        "version": site.version, "app": site.app,
+        "state": "recovered", "incident_state": incident_state,
+        "scheduled_time": incident_time,
+        "recovered_by_scheduled_time": recovered_time,
+        "checked_at": format_ist(checked_at),
+        "api_timestamp": format_epoch_ms_ist(latest_entry.get("timeStamp")),
+        "latest_status": api_status,
+        "expected_cause": expected_cause(incident_state),
+        "status_url": status_url,
+    }
+    return _deliver(
+        store, notifiers, key=recovery_key,
+        record={"region": site.region, "site_key": site.site_key,
+                "scheduled_time": incident_scheduled.isoformat(), "kind": "recovered"},
+        subject=f"Indexing alert: recovered - {site.site_key} [{site.region}]",
+        body=body, details=details, dry_run=dry_run,
+    )
+
+
 def run_checks(cfg: Config, *, now: datetime | None = None) -> dict[str, Any]:
     """Fetch, evaluate and persist the previous and latest run per site."""
     checked_at = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
@@ -171,9 +214,12 @@ def run_checks(cfg: Config, *, now: datetime | None = None) -> dict[str, Any]:
         history = result_or_error
         previous, latest, following = schedule_times(site, checked_at)
         status_url = f"https://{cfg.region_hosts[site.region]}/api/{site.site_key}/catalog/status"
-        for scheduled, boundary in ((previous, latest), (latest, following)):
-            result = evaluate(site, history, checked_at, scheduled, boundary,
+        scheduled_windows = ((previous, latest), (latest, following))
+        evaluated = [evaluate(site, history, checked_at, scheduled, boundary,
                               cfg.buffer_minutes, cfg.timestamp_semantics)
+                     for scheduled, boundary in scheduled_windows]
+        newer_success = evaluated[1].get("state") == "ok"
+        for window_index, ((scheduled, boundary), result) in enumerate(zip(scheduled_windows, evaluated)):
             state = result["state"]
             entry = result.get("latest_entry") or {}
             scheduled_iso = scheduled.isoformat()
@@ -192,6 +238,7 @@ def run_checks(cfg: Config, *, now: datetime | None = None) -> dict[str, Any]:
                 "state": state, "status_url": status_url,
                 "latest_entry": entry if entry else None,
                 "alert_sent": False, "alert_episode_key": None, "error_message": None,
+                "recovered_by_scheduled_time": None,
             }
             sent = False
             if state in ALERT_STATES:
@@ -201,29 +248,54 @@ def run_checks(cfg: Config, *, now: datetime | None = None) -> dict[str, Any]:
                     episode_key = _digest([site.region, site.site_key, scheduled_iso,
                                            state, checked_at.isoformat()])
                 run_record["alert_episode_key"] = episode_key
-                subject, body = alert_text(site, result, cfg.region_hosts[site.region], checked_at)
-                try:
-                    api_timestamp_ist = format_epoch_ms_ist(entry["timeStamp"])
-                except (KeyError, TypeError, ValueError, OverflowError, OSError):
-                    api_timestamp_ist = "none"
-                try:
-                    sent = _deliver(store, notifiers, key=episode_key, record=delivery_record,
-                                    subject=subject, body=body,
-                                    details={"site_key": site.site_key, "region": site.region,
-                                             "version": site.version, "app": site.app,
-                                             "state": state, "scheduled_time": scheduled_ist,
-                                             "checked_at": format_ist(checked_at),
-                                             "api_timestamp": api_timestamp_ist,
-                                             "expected_cause": expected_cause(state),
-                                             "status_url": status_url}, dry_run=cfg.dry_run)
-                except Exception as exc:
-                    counts["delivery_errors"] += 1
-                    sent = bool(getattr(exc, "delivered", False))
-                    run_record["error_message"] = f"alert delivery failed: {exc}"
-                    LOGGER.exception("alert delivery failed for %s [%s]", site.site_key, site.region)
-                if sent:
-                    counts["alerted"] += 1
-                run_record["alert_sent"] = bool(sent or store.get_delivery(episode_key))
+                recovery_key = _digest([episode_key, "recovered"])
+                already_recovered = bool(store.get_delivery(recovery_key))
+                recovered_by_newer_run = window_index == 0 and newer_success
+                if already_recovered:
+                    run_record["alert_sent"] = True
+                    run_record["recovered_by_scheduled_time"] = (
+                        prior_run.get("recovered_by_scheduled_time") if prior_run else None)
+                elif recovered_by_newer_run:
+                    run_record["recovered_by_scheduled_time"] = latest.isoformat()
+                    try:
+                        sent = _send_recovery(
+                            store, notifiers, site=site, incident_state=state,
+                            incident_scheduled=scheduled, recovered_scheduled=latest,
+                            latest_entry=evaluated[1].get("latest_entry") or {},
+                            checked_at=checked_at, episode_key=episode_key,
+                            status_url=status_url, dry_run=cfg.dry_run)
+                    except Exception as exc:
+                        counts["delivery_errors"] += 1
+                        sent = bool(getattr(exc, "delivered", False))
+                        run_record["error_message"] = f"recovery delivery failed: {exc}"
+                        LOGGER.exception("recovery delivery failed for %s [%s]", site.site_key, site.region)
+                    run_record["alert_sent"] = bool(sent or store.get_delivery(recovery_key))
+                    if run_record["alert_sent"]:
+                        counts["alerted"] += 1
+                else:
+                    subject, body = alert_text(site, result, cfg.region_hosts[site.region], checked_at)
+                    try:
+                        api_timestamp_ist = format_epoch_ms_ist(entry["timeStamp"])
+                    except (KeyError, TypeError, OverflowError, OSError):
+                        api_timestamp_ist = "none"
+                    try:
+                        sent = _deliver(store, notifiers, key=episode_key, record=delivery_record,
+                                        subject=subject, body=body,
+                                        details={"site_key": site.site_key, "region": site.region,
+                                                 "version": site.version, "app": site.app,
+                                                 "state": state, "scheduled_time": scheduled_ist,
+                                                 "checked_at": format_ist(checked_at),
+                                                 "api_timestamp": api_timestamp_ist,
+                                                 "expected_cause": expected_cause(state),
+                                                 "status_url": status_url}, dry_run=cfg.dry_run)
+                    except Exception as exc:
+                        counts["delivery_errors"] += 1
+                        sent = bool(getattr(exc, "delivered", False))
+                        run_record["error_message"] = f"alert delivery failed: {exc}"
+                        LOGGER.exception("alert delivery failed for %s [%s]", site.site_key, site.region)
+                    if sent:
+                        counts["alerted"] += 1
+                    run_record["alert_sent"] = bool(sent or store.get_delivery(episode_key))
             elif state == "ok":
                 # Keep the episode key until its recovery message is confirmed;
                 # failed recovery delivery will then retry on the next poll.
@@ -234,18 +306,17 @@ def run_checks(cfg: Config, *, now: datetime | None = None) -> dict[str, Any]:
                     recovery_key = _digest([recovery_episode, "recovered"])
                     run_record["alert_episode_key"] = recovery_episode
                     try:
-                        recovery_body = f"Run scheduled {scheduled_ist} recovered (IST).\nStatus URL: {status_url}"
-                        recovery_sent = _deliver(store, notifiers, key=recovery_key,
-                                        record={**delivery_record, "kind": "recovered"},
-                                        subject=f"Indexing alert: recovered - {site.site_key} [{site.region}]",
-                                        body=recovery_body,
-                                        details={"site_key": site.site_key, "region": site.region,
-                                                 "version": site.version, "app": site.app,
-                                                 "state": "recovered", "scheduled_time": scheduled_ist,
-                                                 "checked_at": format_ist(checked_at),
-                                                 "status_url": status_url}, dry_run=cfg.dry_run)
+                        recovery_sent = _send_recovery(
+                            store, notifiers, site=site,
+                            incident_state=prior_state or "failure",
+                            incident_scheduled=scheduled, recovered_scheduled=scheduled,
+                            latest_entry=entry, checked_at=checked_at,
+                            episode_key=recovery_episode, status_url=status_url,
+                            dry_run=cfg.dry_run)
                         if recovery_sent or store.get_delivery(recovery_key):
                             run_record["alert_episode_key"] = None
+                            run_record["recovered_by_scheduled_time"] = scheduled.isoformat()
+                            run_record["alert_sent"] = True
                     except Exception as exc:
                         counts["delivery_errors"] += 1
                         run_record["error_message"] = f"recovery delivery failed: {exc}"

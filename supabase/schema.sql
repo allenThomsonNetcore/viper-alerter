@@ -12,12 +12,14 @@ create table if not exists public.site_runs (
     alert_sent boolean not null default false,
     alert_episode_key text,
     error_message text,
+    recovered_by_scheduled_time timestamptz,
     primary key (region, site_key, scheduled_time)
 );
 
 alter table public.site_runs add column if not exists version text not null default 'unknown';
 alter table public.site_runs add column if not exists app text not null default 'unknown';
 alter table public.site_runs add column if not exists alert_episode_key text;
+alter table public.site_runs add column if not exists recovered_by_scheduled_time timestamptz;
 
 create index if not exists site_runs_checked_at_idx
     on public.site_runs (checked_at desc);

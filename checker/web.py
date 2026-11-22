@@ -83,9 +83,10 @@ def _csrf_token() -> str:
 
 
 def _latest_by_site(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Reduce recent run records to the newest record per region and site."""
+    """Reduce history to the newest scheduled run per region and site."""
     latest: dict[tuple[str, str], dict[str, Any]] = {}
-    for row in rows:
+    for row in sorted(rows, key=lambda item: (item.get("scheduled_time", ""), item.get("checked_at", "")),
+                      reverse=True):
         key = (row.get("region", ""), row.get("site_key", ""))
         if key not in latest:
             latest[key] = row

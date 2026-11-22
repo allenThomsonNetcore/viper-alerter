@@ -23,15 +23,17 @@
             <tr>
               <td style="padding:24px 26px 10px;">
                 <p style="margin:0 0 18px;color:#58677d;font-size:14px;line-height:1.6;">
-                  An indexing status needs attention. All timestamps below are shown in Indian Standard Time (IST).
+                  An alert or recovery update for catalog indexing. Recovery notices identify a later successful run. All timestamps below are shown in Indian Standard Time (IST).
                 </p>
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;font-size:14px;">
                   <tr><td style="padding:9px 0;border-bottom:1px solid #edf0f4;color:#718096;width:38%;">Site key</td><td style="padding:9px 0;border-bottom:1px solid #edf0f4;font-weight:700;word-break:break-word;">{{site_key}}</td></tr>
                   <tr><td style="padding:9px 0;border-bottom:1px solid #edf0f4;color:#718096;">Region</td><td style="padding:9px 0;border-bottom:1px solid #edf0f4;">{{region}}</td></tr>
                   <tr><td style="padding:9px 0;border-bottom:1px solid #edf0f4;color:#718096;">Version / app</td><td style="padding:9px 0;border-bottom:1px solid #edf0f4;">{{version}} / {{app}}</td></tr>
                   <tr><td style="padding:9px 0;border-bottom:1px solid #edf0f4;color:#718096;">Status</td><td style="padding:9px 0;border-bottom:1px solid #edf0f4;font-weight:700;">{{state}}</td></tr>
+                  <tr><td style="padding:9px 0;border-bottom:1px solid #edf0f4;color:#718096;">Earlier run status</td><td style="padding:9px 0;border-bottom:1px solid #edf0f4;">{{incident_state}}</td></tr>
                   <tr><td style="padding:9px 0;border-bottom:1px solid #edf0f4;color:#718096;">Expected cause</td><td style="padding:9px 0;border-bottom:1px solid #edf0f4;">{{expected_cause}}</td></tr>
                   <tr><td style="padding:9px 0;border-bottom:1px solid #edf0f4;color:#718096;">Scheduled run (IST)</td><td style="padding:9px 0;border-bottom:1px solid #edf0f4;word-break:break-word;">{{scheduled_time}}</td></tr>
+                  <tr><td style="padding:9px 0;border-bottom:1px solid #edf0f4;color:#718096;">Recovered by run (IST)</td><td style="padding:9px 0;border-bottom:1px solid #edf0f4;word-break:break-word;">{{recovered_by_scheduled_time}}</td></tr>
                   <tr><td style="padding:9px 0;border-bottom:1px solid #edf0f4;color:#718096;">Checked at (IST)</td><td style="padding:9px 0;border-bottom:1px solid #edf0f4;word-break:break-word;">{{checked_at}}</td></tr>
                   <tr><td style="padding:9px 0;border-bottom:1px solid #edf0f4;color:#718096;">API entry time (IST)</td><td style="padding:9px 0;border-bottom:1px solid #edf0f4;word-break:break-word;">{{api_timestamp}}</td></tr>
                 </table>

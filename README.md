@@ -105,7 +105,7 @@ curl -X POST http://127.0.0.1:10000/internal/run-checks \
 - `POST /internal/run-checks` — protected external scheduler trigger
 - `GET /healthz` — health ping; no checker work is run
 
-The `site_runs` table is unique on `(region, site_key, scheduled_time)`, so each scheduled run updates its status. The newest history entry in that run window determines its current state. `alert_deliveries` records alert episodes: repeated checks of the same failure are deduplicated, recovery sends one message, and a later failure after recovery starts a new episode. Records older than seven days are pruned on checker runs.
+The `site_runs` table is unique on `(region, site_key, scheduled_time)`, so each scheduled run updates its status. The newest history entry in that run window determines its current state. `alert_deliveries` records alert episodes: repeated checks of the same failure are deduplicated, recovery sends one message, and a later failure after recovery starts a new episode. If one checker cycle finds an older failed/missing run and a newer successful run, it sends a recovery notice describing both and suppresses the stale failure alert. Run the latest `supabase/schema.sql` before deploying to add the recovery metadata column. Records older than seven days are pruned on checker runs.
 
 ## Assumptions and limits
 
