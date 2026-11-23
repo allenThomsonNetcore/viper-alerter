@@ -49,7 +49,7 @@ def test_dashboard_renders_mobile_table(monkeypatch):
 
     monkeypatch.setattr(web, "load_config", lambda: Config(dashboard_user="operator", dashboard_password="secret", flask_secret_key="test-key"))
     monkeypatch.setattr(web, "_store", Store)
-    monkeypatch.setattr(web, "_configured_sites", lambda cfg: [Site("test-site", "sg", "0 */3 * * *", 120, "v2", "shopify")])
+    monkeypatch.setattr(web, "_configured_sites", lambda cfg, store=None: [Site("test-site", "sg", "0 */3 * * *", 120, "v2", "shopify")])
     web.app.secret_key = "test-key"
     client = web.app.test_client()
     with client.session_transaction() as state:
@@ -95,7 +95,7 @@ def test_site_history_page_handles_site_before_first_check(monkeypatch):
 
     monkeypatch.setattr(web, "load_config", lambda: Config(dashboard_user="operator", dashboard_password="secret", flask_secret_key="test-key"))
     monkeypatch.setattr(web, "_store", Store)
-    monkeypatch.setattr(web, "_configured_sites", lambda cfg: [Site("test-site", "us", "0 */3 * * *", 120, "v2", "shopify")])
+    monkeypatch.setattr(web, "_configured_sites", lambda cfg, store=None: [Site("test-site", "us", "0 */3 * * *", 120, "v2", "shopify")])
     web.app.secret_key = "test-key"
     client = web.app.test_client()
     with client.session_transaction() as state:
@@ -106,6 +106,27 @@ def test_site_history_page_handles_site_before_first_check(monkeypatch):
     assert b"Not checked yet" in response.data
     assert b"Every 3 hours at minute 00 UTC" in response.data
     assert b"https://feed.unbxd.io/api/test-site/catalog/status" in response.data
+
+
+def test_dashboard_check_now_runs_checker(monkeypatch):
+    """A signed-in Check now click runs one checker cycle and returns to the overview."""
+    from checker import web
+
+    calls = []
+    monkeypatch.setattr(web, "load_config", lambda: Config(dashboard_user="operator", dashboard_password="secret", flask_secret_key="test-key"))
+    monkeypatch.setattr(web, "run_checks", lambda cfg: calls.append(cfg) or {"counts": {}})
+    monkeypatch.setattr(web, "_store", lambda: type("Store", (), {"latest_runs": lambda self: []})())
+    monkeypatch.setattr(web, "_configured_sites", lambda cfg, store=None: [])
+    web.app.secret_key = "test-key"
+    client = web.app.test_client()
+    with client.session_transaction() as state:
+        state["viper_authenticated"] = True
+        state["csrf_token"] = "csrf"
+    response = client.post("/run-checks", data={"csrf_token": "csrf"}, follow_redirects=True)
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert b"Check finished" in response.data
+    assert b"Check now" in response.data
 
 
 def test_run_endpoint_rejects_bad_token(monkeypatch):

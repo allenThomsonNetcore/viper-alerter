@@ -263,6 +263,30 @@ def trigger_checks():
         _run_lock.release()
 
 
+@app.post("/run-checks")
+def run_checks_now():
+    """Run one checker cycle from the dashboard and return to the overview."""
+    submitted = request.form.get("csrf_token", "")
+    expected = session.get("csrf_token", "")
+    if not expected or not hmac.compare_digest(submitted, expected):
+        abort(400, description="The form expired. Refresh the dashboard and try again.")
+    if not _run_lock.acquire(blocking=False):
+        flash("A check is already running.", "error")
+        return redirect(url_for("dashboard"))
+    try:
+        summary = run_checks(load_config())
+        if summary["counts"].get("delivery_errors", 0):
+            flash("Check finished, but some alert emails failed to send.", "error")
+        else:
+            flash("Check finished. Statuses are updated.", "success")
+    except Exception:
+        LOGGER.exception("manual checker run failed")
+        flash("The check failed. See server logs for details.", "error")
+    finally:
+        _run_lock.release()
+    return redirect(url_for("dashboard"))
+
+
 @app.get("/")
 def dashboard():
     """Render current site status table from Supabase."""

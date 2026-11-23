@@ -9,7 +9,7 @@
       <h1>Catalog indexing</h1>
       <p class="lede">Current run status across the sites configured by CSV and the dashboard.</p>
     </div>
-    <div class="updated-card"><span class="pulse"></span><div><span class="small-label">Latest check</span>{% if last_checked %}<time class="ist-time updated-time" data-utc="{{ last_checked }}">{{ last_checked }}</time>{% else %}<strong>No checks yet</strong>{% endif %}<span class="small-label">Times shown in IST</span></div></div>
+    <div class="updated-card"><span class="pulse"></span><div><span class="small-label">Latest check</span>{% if last_checked %}<time class="ist-time updated-time" data-utc="{{ last_checked }}">{{ last_checked }}</time>{% else %}<strong>No checks yet</strong>{% endif %}<span class="small-label">Times shown in IST</span></div><form class="check-now-form" action="{{ url_for('run_checks_now') }}" method="post" onsubmit="this.querySelector('button').disabled=true"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button button-primary" type="submit">Check now</button></form></div>
   </section>
 
   <section class="stat-grid" aria-label="Site status counts">

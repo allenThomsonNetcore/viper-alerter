@@ -37,6 +37,7 @@ h2 { margin: 0 0 4px; font-size: 17px; }
 .eyebrow { margin-bottom: 7px; color: #78869a; font-size: 10px; font-weight: 700; letter-spacing: 1.25px; }
 .lede { margin: 0; color: var(--muted); font-size: 14px; }
 .updated-card { min-width: 252px; display: flex; align-items: flex-start; gap: 12px; padding: 13px 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; box-shadow: 0 2px 8px #192b4306; }
+.check-now-form { margin: 0 0 0 8px; align-self: center; }
 .updated-card strong,.updated-card time,.updated-card .small-label { display: block; }
 .updated-card strong { margin: 2px 0; font-size: 12px; }
 .small-label,.stat-foot { color: var(--muted); font-size: 11px; }
