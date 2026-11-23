@@ -35,7 +35,7 @@ def test_pending_during_grace(minute):
     assert ev([], T + timedelta(minutes=minute), datetime(2026, 10, 23, 9, 0, tzinfo=UTC))["state"] == "pending"
 
 
-@pytest.mark.parametrize("status,expected", [("FAILED", "failed"), ("REJECTED", "rejected"), ("INDEXING", "pending"), ("WAT", "unknown")])
+@pytest.mark.parametrize("status,expected", [("FAILED", "failed"), ("ABORTED", "failed"), ("REJECTED", "rejected"), ("INDEXING", "pending"), ("WAT", "unknown")])
 def test_status_classes(status, expected):
     """Terminal and in-flight status values are classified."""
     hist = [{"status": status, "code": 500 if status == "FAILED" else 200, "timeStamp": int(T.timestamp() * 1000)}]

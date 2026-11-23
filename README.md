@@ -112,6 +112,7 @@ The `site_runs` table is unique on `(region, site_key, scheduled_time)`, so each
 - `TIMESTAMP_SEMANTICS` defaults to `finish`; confirm the platform's actual `timeStamp` meaning. Status classifications are defined in [`checker/evaluator.py`](checker/evaluator.py).
 - The dashboard shows latest observations and the latest history stored by the checker; it does not query the status endpoint on every page load.
 - `ACCEPTED` and `QUEUED` API statuses are treated as in-progress. They do not trigger failure alerts while within the configured duration and buffer; if they remain active beyond that deadline, they are classified as `stuck`.
+- `ABORTED` is treated as a failed run and triggers the standard failure alert, including the API status message when available.
 - `POST /internal/run-checks` returns `202` as soon as a cycle starts. The check keeps running in the web process after the response, so a larger site list does not hit Render's request timeout. A second trigger while that cycle is still running returns `409`. On the free plan the process can still stop after 15 minutes without inbound HTTP traffic, or if Render restarts the service.
 - The free Render service may cold-start or restart, and cron-job.org can be delayed. This is suitable for a prototype, not an alerting SLA.
 

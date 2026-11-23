@@ -139,7 +139,7 @@ def _live_sites(cfg, store: SupabaseStore | None = None) -> list[dict[str, Any]]
                 state = "rejected"
             elif raw_status in {"INDEXED", "SUCCESS", "SUCCEEDED"} and code in (None, 200):
                 state = "success"
-            elif raw_status in {"FAILED", "ERROR"} or (code is not None and code != 200 and raw_status):
+            elif raw_status in {"FAILED", "ERROR", "ABORTED"} or (code is not None and code != 200 and raw_status):
                 state = "failure"
             else:
                 state = "no_status"

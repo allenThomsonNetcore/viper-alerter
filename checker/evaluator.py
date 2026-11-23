@@ -10,7 +10,7 @@ from checker.csv_loader import Site
 
 UTC = timezone.utc
 SUCCESS = {"INDEXED"}
-FAILURE = {"FAILED", "ERROR"}
+FAILURE = {"FAILED", "ERROR", "ABORTED"}
 REJECTED = {"REJECTED"}
 IN_PROGRESS = {"INDEXING", "PROCESSING", "IN_PROGRESS", "ACCEPTED", "QUEUED"}
 
