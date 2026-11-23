@@ -6,6 +6,7 @@ import io
 import logging
 import secrets
 import csv
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from threading import Lock
@@ -246,44 +247,53 @@ def handle_unavailable(error):
                            csrf_token=session.get("csrf_token", "")), 503
 
 
+def _start_checks() -> str:
+    """Start one checker cycle in the background so the HTTP request can return."""
+    if not _run_lock.acquire(blocking=False):
+        return "already_running"
+    cfg = load_config()
+
+    def _run() -> None:
+        try:
+            summary = run_checks(cfg)
+            if summary["counts"].get("delivery_errors", 0):
+                LOGGER.error("checker run finished with delivery errors: %s", summary)
+            else:
+                LOGGER.info("checker run finished: %s", summary)
+        except Exception:
+            LOGGER.exception("checker run failed")
+        finally:
+            _run_lock.release()
+
+    worker = threading.Thread(target=_run, name="viper-run-checks", daemon=True)
+    try:
+        worker.start()
+    except Exception:
+        _run_lock.release()
+        raise
+    return "started"
+
+
 @app.post("/internal/run-checks")
 def trigger_checks():
-    """Run one checker cycle when called by the external scheduler."""
-    if not _run_lock.acquire(blocking=False):
-        return jsonify({"status": "already_running"}), 409
-    try:
-        summary = run_checks(load_config())
-        if summary["counts"].get("delivery_errors", 0):
-            return jsonify({"status": "delivery_error", **summary}), 502
-        return jsonify({"status": "completed", **summary})
-    except Exception as exc:
-        LOGGER.exception("scheduled checker run failed")
-        return jsonify({"status": "error", "message": str(exc)}), 500
-    finally:
-        _run_lock.release()
+    """Start one checker cycle when called by the external scheduler."""
+    status = _start_checks()
+    if status == "already_running":
+        return jsonify({"status": status}), 409
+    return jsonify({"status": status}), 202
 
 
 @app.post("/run-checks")
 def run_checks_now():
-    """Run one checker cycle from the dashboard and return to the overview."""
+    """Start one checker cycle from the dashboard and return to the overview."""
     submitted = request.form.get("csrf_token", "")
     expected = session.get("csrf_token", "")
     if not expected or not hmac.compare_digest(submitted, expected):
         abort(400, description="The form expired. Refresh the dashboard and try again.")
-    if not _run_lock.acquire(blocking=False):
+    if _start_checks() == "already_running":
         flash("A check is already running.", "error")
-        return redirect(url_for("dashboard"))
-    try:
-        summary = run_checks(load_config())
-        if summary["counts"].get("delivery_errors", 0):
-            flash("Check finished, but some alert emails failed to send.", "error")
-        else:
-            flash("Check finished. Statuses are updated.", "success")
-    except Exception:
-        LOGGER.exception("manual checker run failed")
-        flash("The check failed. See server logs for details.", "error")
-    finally:
-        _run_lock.release()
+    else:
+        flash("Check started. Results appear as each site is saved, and this page refreshes every 60 seconds.", "success")
     return redirect(url_for("dashboard"))
 
 

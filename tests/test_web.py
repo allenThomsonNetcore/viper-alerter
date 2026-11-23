@@ -122,10 +122,18 @@ def test_dashboard_check_now_runs_checker(monkeypatch):
     with client.session_transaction() as state:
         state["viper_authenticated"] = True
         state["csrf_token"] = "csrf"
+    class ImmediateThread:
+        def __init__(self, target=None, name=None, daemon=None):
+            self._target = target
+
+        def start(self):
+            self._target()
+
+    monkeypatch.setattr(web.threading, "Thread", ImmediateThread)
     response = client.post("/run-checks", data={"csrf_token": "csrf"}, follow_redirects=True)
     assert response.status_code == 200
     assert len(calls) == 1
-    assert b"Check finished" in response.data
+    assert b"Check started" in response.data
     assert b"Check now" in response.data
 
 
