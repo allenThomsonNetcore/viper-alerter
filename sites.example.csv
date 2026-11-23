@@ -20,10 +20,9 @@ ss-unbxd-gus-shopify-fairwaystyles19121748978085,us-gcp,19 */2 * * *,120,v2,shop
 ss-unbxd-aapac-prod-elitesupp-sg14461770952608,sg,0 */2 * * *,120,v1,shopify
 ss-unbxd-gus-bigcommerce-stpclnu1mc-store48841794994498,us,24 */12 * * *,120,v1,bigcommerce
 ss-unbxd-aapac-prod-bigPharmacy69661758605295,sg,0 * * * *,120,v1,shopify
-ss-unbxd-gcp-riks-gaming-joint5581626764646,us-gcp,41 11 * * *,120,v1,shopify
 ss-unbxd-prod-mariobadescushopify-com811531675083203,us-gcp,44 */4 * * *,120,v1,shopify
 ss-unbxd-TradeTools-Prod30861638503743,au,59 */3 * * *,120,v1,bigcommerce
-ss-unbxd-shopG35351654238944,sg,1 17 * * *,120,v1,shopify
+
 ss-unbxd-Madras-Link-Prod35911657589987,au,*/15 * * * *,120,v1,shopify
 ss-unbxd-prod-supertails43231684495044,sg,6 */4 * * *,120,v1,shopify
 ss-unbxd-prod-doctoroncall41531679484943,sg,*/30 * * * *,120,v1,shopify
